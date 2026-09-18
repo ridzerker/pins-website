@@ -1,0 +1,67 @@
+"use client";
+
+import Link from "next/link";
+import { useSyncExternalStore } from "react";
+import { Icon } from "@/components/icons";
+import { cleanConfirmationUrl, confirmationState } from "@/lib/confirmation";
+import styles from "./confirmation.module.css";
+
+function readState() {
+  return confirmationState(window.location.search, window.location.hash);
+}
+
+function subscribe(onChange: () => void) {
+  function sync() {
+    const cleanUrl = cleanConfirmationUrl(new URL(window.location.href));
+    if (cleanUrl !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+      // Preserve Next's history state. Never persist, forward, or log auth credentials.
+      window.history.replaceState(window.history.state, "", cleanUrl);
+    }
+    onChange();
+  }
+  sync();
+  window.addEventListener("hashchange", sync);
+  window.addEventListener("popstate", sync);
+  return () => {
+    window.removeEventListener("hashchange", sync);
+    window.removeEventListener("popstate", sync);
+  };
+}
+
+const copy = {
+  pending: { title: "Email confirmation", body: "Loading your confirmation result…" },
+  success: { title: "Email confirmed", body: "Your account is ready. Head back to Pins and start saving places." },
+  expired: { title: "This link has expired", body: "This confirmation link is invalid or has expired. Get help with a new email to finish signing up." },
+  error: { title: "We couldn’t confirm your email", body: "Try the link in your latest confirmation email, or get help signing in." },
+};
+
+export function Confirmation({ appOpenUrl }: { appOpenUrl: string | null }) {
+  // A neutral prerender prevents a false success flash before fragment errors are read.
+  const state = useSyncExternalStore(subscribe, readState, () => "pending" as const);
+  const message = copy[state];
+  const failed = state === "expired" || state === "error";
+
+  return (
+    <>
+      <div role="status" aria-live="polite" aria-atomic="true" className={styles.status}>
+        <span className={`${styles.indicator} ${failed ? styles.errorIndicator : ""}`} aria-hidden="true">
+          {failed ? <span className={styles.exclamation}>!</span> : <Icon name={state === "success" ? "check" : "mail"} size={30} />}
+        </span>
+        <h1 className={styles.title}>{message.title}</h1>
+        <p className={styles.copy}>{message.body}</p>
+      </div>
+      <div className={styles.actions}>
+        {appOpenUrl ? (
+          <>
+            <a className={`button primary ${styles.primary}`} href={appOpenUrl} rel="noreferrer">Open Pins <Icon name="arrow" size={18} /></a>
+            <p className={styles.hint}>If Pins doesn’t open, open the app on your device.</p>
+          </>
+        ) : (
+          <p className={styles.hint}>Open Pins on your device{state === "success" ? " to sign in." : "."}</p>
+        )}
+        {failed && <Link href="/support" className={styles.support}>Get help with confirmation <Icon name="arrow" size={16} /></Link>}
+        <Link href="/" className={appOpenUrl ? styles.home : `button primary ${styles.primary}`}>Back to Pins website{!appOpenUrl && <Icon name="arrow" size={18} />}</Link>
+      </div>
+    </>
+  );
+}

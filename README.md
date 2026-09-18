@@ -26,6 +26,8 @@ The production build creates `out/`. Deploy it as static files; `next start` is 
 
 ## Project map
 
+- `src/app/auth/confirmed/`: branded post-confirmation result with query/fragment error handling; no website auth client. See [email confirmation setup](docs/email-confirmation.md) for the required Supabase allowlist, exact mobile signup edit, app-opening configuration, and test plan.
+
 - `src/app/page.tsx`: landing page and exactly four feature blocks.
 - `src/app/privacy/page.tsx`: beta privacy policy draft.
 - `src/app/support/page.tsx`: help topics and email contact.
