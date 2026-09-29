@@ -6,9 +6,9 @@ Canonical public destination: **https://www.joinpins.app/auth/confirmed**. The e
 
 Mobile signup → Supabase confirmation email → Supabase verifies the link → website displays the result → user returns to Pins to sign in. The website does not verify tokens, exchange codes, create a session, or access Supabase. No callback endpoint, SDK, credentials, or resend form is needed.
 
-The page shell, metadata, shared header/logo/footer, and surface are prerendered. Only the result panel reads browser query/fragment parameters. It renders neutral copy until hydration, then success by default, invalid/expired for recognized link failures, or generic failure for other errors. Errors in either source take precedence, including duplicate keys. Raw error text is never displayed. Token/token-hash/PKCE-code callbacks and non-signup auth types fail safely instead of claiming verification. A direct visit is a display-only success preview, not proof of account confirmation or an authorization check.
+The page shell, metadata, shared header/logo/footer, and surface are prerendered. Only the result panel reads browser query/fragment parameters. It renders neutral copy until hydration, then return-to-app guidance by default, invalid/expired for recognized link failures, or generic failure for other errors. Errors in either source take precedence, including duplicate keys. Raw error text is never displayed. Token/token-hash/PKCE-code callbacks and non-signup auth types fail safely instead of claiming verification. A direct visit shows return-to-app guidance and explicitly says that the website cannot check account confirmation. The internal no-error state is not proof of verification or an authorization check.
 
-Recognized credentials and raw errors are removed with `history.replaceState`, retaining a fixed error code for reload/back behavior. No tokens are stored, logged, or passed to the app. A `no-referrer` meta policy limits referrer leakage, but incoming query strings still reach the hosting server before JavaScript cleans them. Keep the standard Supabase verification URL; do not put verification tokens in this website's query string. There is no analytics. JavaScript-disabled visitors see neutral guidance. Metadata is `noindex, nofollow`; the route is not added to navigation or sitemap.
+Ordinary document anchors, including the keyboard skip target, are preserved. Recognized credentials and raw errors are removed with `history.replaceState`, retaining a fixed error code for reload/back behavior. No tokens are stored, logged, or passed to the app. A `no-referrer` meta policy limits referrer leakage, but incoming query strings still reach the hosting server before JavaScript cleans them. Keep the standard Supabase verification URL; do not put verification tokens in this website's query string. There is no analytics. JavaScript-disabled visitors see neutral guidance. Metadata is `noindex, nofollow`; the route is not added to navigation or sitemap.
 
 ## Repository audit (September 18, 2026)
 
@@ -86,7 +86,7 @@ git status --short
 
 Focused tests need Node 22.6+ (Node 24 recommended). Review success/errors at 375, 390, 430, 768, and desktop widths; check keyboard focus, zoom, reduced motion, JS-disabled fallback, support/home links, and `/`, `/privacy`, `/support`, `/delete-account`.
 
-### Implementation validation results
+### Historical implementation validation results (September 18, 2026)
 
 - `npm.cmd run lint`: passed.
 - `node --experimental-strip-types --test scripts/test-confirmation.mjs`: 5 tests passed (Node 24.16.0; informational module-type detection warning only).
@@ -105,3 +105,7 @@ Focused tests need Node 22.6+ (Node 24 recommended). Review success/errors at 37
 4. Reopen a consumed/expired link and verify the error state when Supabase returns `otp_expired`. Test generic failure with a synthetic URL. Check desktop and devices without Pins. If a template/provider keeps failures on its own page, investigate that upstream flow.
 5. When Open Pins is configured, verify it opens the installed production app on both platforms without carrying credentials, and manual fallback/home links remain usable.
 6. Recheck homepage, privacy, support, account deletion, keyboard focus, and mobile layouts. Avoid recording callback URLs with credentials. Deployment, Supabase/template/DNS changes, commits, and pushes are not part of this implementation.
+
+## September 28 website sprint update
+
+The current site uses self-hosted Inter and shared typography/control tokens. The no-error panel no longer declares “Email confirmed”; it explains the verification limitation. Skip-link anchors are preserved by cleanup and covered by a regression test. The full website browser suite now covers responsive layout, keyboard links, and confirmation hydration/errors; see [current audit results](website-trust-audit.md). Support email remains gated until the owner confirms a monitored mailbox. Earlier implementation limitations above describe the September 18 audit, not the current local test results. Live Supabase, production email and installed-device verification remain outstanding.

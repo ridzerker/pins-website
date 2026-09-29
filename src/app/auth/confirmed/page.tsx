@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function ConfirmedPage() {
   return (
-    <main id="main-content" className={`shell ${styles.main}`}>
+    <main id="main-content" tabIndex={-1} className={`shell ${styles.main}`}>
       <section className={styles.surface} aria-label="Pins email confirmation">
         <p className={`eyebrow ${styles.eyebrow}`}>YOUR WORLD IS WAITING</p>
         <Confirmation appOpenUrl={pinsAppOpenUrl} />

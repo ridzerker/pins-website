@@ -29,12 +29,15 @@ export function cleanConfirmationUrl(url: URL): string {
   const state = confirmationState(url.search, url.hash);
   const query = new URLSearchParams(url.search);
   const fragment = new URLSearchParams(url.hash.slice(1));
+  const removedKeys = [...sensitiveKeys, ...errorKeys, "type"];
+  // An ordinary document anchor must survive cleanup (including the skip link).
+  const hasAuthFragment = removedKeys.some(key => fragment.has(key));
   for (const params of [query, fragment]) {
-    for (const key of [...sensitiveKeys, ...errorKeys, "type"]) params.delete(key);
+    for (const key of removedKeys) params.delete(key);
   }
   // Retain only a fixed error code so refresh/back preserves the state without raw errors.
   if (state !== "success") query.set("error_code", state === "expired" ? "otp_expired" : "confirmation_failed");
   const search = query.toString();
-  const hash = fragment.toString();
+  const hash = hasAuthFragment ? fragment.toString() : url.hash.slice(1);
   return `${url.pathname}${search ? `?${search}` : ""}${hash ? `#${hash}` : ""}`;
 }

@@ -41,3 +41,10 @@ test("cleanup removes credentials/raw errors and preserves state across reloads"
     assert.equal(cleanConfirmationUrl(after), clean);
   }
 });
+
+test("cleanup preserves document anchors used by keyboard skip navigation", () => {
+  for (const suffix of ["#main-content", "?error_code=otp_expired#main-content", "#a%20section"]) {
+    const url = new URL(`https://www.joinpins.app/auth/confirmed/${suffix}`);
+    assert.equal(new URL(cleanConfirmationUrl(url), url.origin).hash, url.hash);
+  }
+});

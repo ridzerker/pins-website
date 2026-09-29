@@ -11,7 +11,7 @@
   text-align: center;
   background: #fffefa;
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: var(--radius-card);
 }
 
 .eyebrow { color: var(--deep); margin-bottom: 28px; }
@@ -30,7 +30,7 @@
 .exclamation { font-size: 30px; font-weight: 500; }
 .title {
   max-width: 400px;
-  font-size: clamp(32px, 4vw, 42px);
+  font-size: var(--text-h1);
   line-height: 1.12;
   font-weight: 500;
   letter-spacing: -1.4px;
@@ -39,21 +39,21 @@
 .copy {
   max-width: 345px;
   margin-top: 18px;
-  color: #62635b;
-  font-size: 16px;
+  color: var(--muted);
+  font-size: var(--text-body);
   line-height: 1.7;
   text-wrap: pretty;
 }
 .actions { display: flex; flex-direction: column; align-items: center; gap: 16px; margin-top: 28px; }
-.primary { min-height: 48px; width: 100%; max-width: 290px; border-radius: 14px; font-size: 14px; }
-.hint, .noScript { color: #62635b; font-size: 13px; line-height: 1.6; }
-.home, .support { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; color: var(--deep); font-size: 13px; text-underline-offset: 4px; }
+.primary { min-height: 48px; width: 100%; max-width: 290px; font-size: var(--text-button); }
+.hint, .noScript { color: var(--muted); font-size: var(--text-small); line-height: 1.6; }
+.home, .support { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; color: var(--deep); font-size: var(--text-small); text-underline-offset: 4px; }
 .home:hover, .support:hover { text-decoration: underline; }
 .noScript { margin-top: 18px; }
 
 @media (max-width: 600px) {
   .main { min-height: 560px; padding-block: 36px; }
   .surface { border-radius: 20px; }
-  .title { font-size: 34px; }
-  .copy { font-size: 15px; }
+
+
 }

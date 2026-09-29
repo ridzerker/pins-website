@@ -2,74 +2,58 @@
 
 # Pins website
 
-A warm, responsive public website for Pins at **joinpins.app**. Built with Next.js App Router, TypeScript, and Tailwind CSS. All routes are statically exported to `out/`; no database, authentication, external API, or environment variables are needed.
+A public website for Pins at **joinpins.app**. Next.js App Router, React, TypeScript, and Tailwind CSS; all routes export to `out/`. There is no website database, login, payment system, or third-party analytics.
 
-Installed versions: Next.js 16.3.5, React/React DOM 19.3.0, TypeScript 5.9.3, Tailwind CSS 4.3.3. Exact dependency resolutions are recorded in `package-lock.json`.
+## Development and verification
 
-## Run locally
-
-Use Node.js 22 or later (verified with Node 24).
+Use Node.js 22.6+ (tested with Node 24). On Windows, use `npm.cmd` if PowerShell blocks `npm.ps1`.
 
 ```sh
 npm ci
 npm run dev
-```
-
-Open http://localhost:3000. On Windows, if PowerShell blocks `npm.ps1`, use `npm.cmd` in place of `npm`.
-
-```sh
 npm run lint
+npm run typecheck
+npm test
 npm run build
+npm run test:website
 ```
 
-The production build creates `out/`. Deploy it as static files; `next start` is not used with static export. See the [Next.js static export documentation](https://nextjs.org/docs/app/guides/static-exports).
+The dev site is at http://localhost:3000. Build before running website tests. The test harness serves `out/` on a temporary localhost port and launches isolated headless Chrome; it does not use your browser profile. On Windows it defaults to `C:/Program Files/Google/Chrome/Application/chrome.exe`. Set `PINS_TEST_BROWSER` to another Chromium executable path on other installations. Screenshots and detailed JSON results go to ignored `.preview/sprint/`.
 
-## Project map
+The browser suite covers every route and link, 320/390/430/768/1024/1440 widths, 200% text, axe WCAG A/AA checks, keyboard activation/skip links, confirmation error handling and URL cleanup, no-JavaScript fallback, browser storage, and external requests. A local static-server result does not verify deployed hosting or real email/app behavior.
 
-- `src/app/auth/confirmed/`: branded post-confirmation result with query/fragment error handling; no website auth client. See [email confirmation setup](docs/email-confirmation.md) for the required Supabase allowlist, exact mobile signup edit, app-opening configuration, and test plan.
+## Routes and shared code
 
-- `src/app/page.tsx`: landing page and exactly four feature blocks.
-- `src/app/privacy/page.tsx`: beta privacy policy draft.
-- `src/app/support/page.tsx`: help topics and email contact.
-- `src/app/delete-account/page.tsx`: instructions for the in-app deletion flow.
-- `src/app/layout.tsx`, `globals.css`: shared layout, metadata, responsive styling.
-- `src/app/not-found.tsx`, `icon.svg`, `robots.ts`, `sitemap.ts`: 404, favicon, and SEO assets.
-- `src/components/`: site navigation/footer, inline SVG icons, illustrative HTML/CSS/SVG phone preview.
-- `public/og-image.png`: locally generated social sharing image.
-- `scripts/create-og.ps1`: optional Windows script to regenerate the social card; not needed to build or deploy.
-- Root configuration: Next.js static export, TypeScript, Tailwind/PostCSS, ESLint, package manifest and lockfile, Git ignore rules.
-- `AGENTS.md` and `CLAUDE.md`: framework-generated guidance for future coding work.
+- `/`: landing page and four feature blocks; illustrated app UI, not a live map.
+- `/privacy`, `/terms`, `/cookies`: website policies.
+- `/data-request`: privacy/account request guidance and contact availability.
+- `/support`, `/delete-account`: help and existing in-app deletion guidance.
+- `/auth/confirmed`: display-only post-verification guidance; never confirms an account itself. See [email confirmation setup](docs/email-confirmation.md).
+- `src/components/site.tsx`: header, footer, contact display, document layout.
+- `src/lib/site-config.ts`: contact address and policy revision date.
+- `src/app/layout.tsx`, `globals.css`, `fonts/`: self-hosted Inter, global design tokens, responsive styling. The font's SIL OFL license is included.
+- `src/components/map-preview.tsx`, `icons.tsx`, `public/brand/`: local artwork.
 
-No stock photography, remote fonts, analytics, third-party embeds, or extra UI libraries are used. The preview is illustrative and labeled accordingly. Its example place names, initials, and pin count are fictional UI content, not testimonials or user metrics. Controls inside that illustration are decorative.
+The site has no forms, cookie consent state, optional tracking, or embedded third-party content. Example initials, place names, and counts are fictional illustration content, not testimonials or user statistics.
 
-## Push to GitHub manually
+## Contact setup — required before release
 
-Git is initialized on `main`. No commit or push has been made. Create an empty GitHub repository, then run these commands yourself (replace `YOUR-USERNAME`):
+The original brief used **support@joinpins.app**, but the prior README explicitly marked it as a placeholder requiring mailbox setup. No monitored mailbox has been confirmed in this sprint. `supportEmail` in `src/lib/site-config.ts` therefore remains `null`. Public support and data-request pages clearly explain that email requests are unavailable, and no placeholder mail links are rendered.
 
-```sh
-git add .
-git commit -m "Build Pins public website"
-git remote add origin https://github.com/YOUR-USERNAME/pins-website.git
-git push -u origin main
-```
+After the owner confirms a real receiving address, set that constant to the address and rebuild. This enables the privacy-request email button and direct address, support contact, and beta-availability inquiry. Test receipt and the actual request-handling process separately; the website cannot verify mailbox delivery or execute account deletion. The inquiry is not a newsletter subscription. No email is sent automatically.
 
-## Deploy to Vercel
+## Deploy
 
-1. Push to your GitHub repository.
-2. In Vercel, choose **Add New → Project**, then import that repository.
-3. Use the **Next.js** framework preset and the repository root. Build command: `npm run build`. Keep the detected output settings; the Next.js config enables static export.
-4. Deploy. No environment variables are required.
-5. Add `joinpins.app` in the project's domain settings and configure the DNS records Vercel supplies.
-6. Verify all four routes, the mail links, favicon, and sharing image on your deployed domain.
+Deploy the generated `out/` as static files with directory-index support and `404.html` as the 404 document. Do not use `next start`. The project uses trailing-slash routes; preserve URL query and fragment behavior on production redirects.
+
+Vercel is suggested by the original setup, but the actual hosting/dashboard configuration was not verified. If using Vercel, import this repository with the Next.js preset and build command `npm run build`. No application environment variables are required. Review domain settings and actual network/storage behavior after deployment. This sprint does not deploy or push.
 
 ## Before launch
 
-- Set up and test **support@joinpins.app**. It is a placeholder contact address supplied in the brief. Email delivery is not provided by this project.
-- “Get notified” opens a prefilled email to that address; there is no automatic subscription, stored waitlist, or guaranteed notification. The page explicitly explains the email action.
-- Review the privacy draft against the actual app implementation, service providers, retention behavior, applicable age rules, and launch jurisdictions. It has not been reviewed by legal counsel. Update the date when the policy is approved.
-- Confirm that profile visibility, follow requests, reporting/blocking options, location behavior, and **Profile → Settings → Delete Account** match the shipping app.
-- Replace coming-soon links with the real TestFlight/App Store URLs when available. Do not label the app as available before then.
-- Replace illustrative UI content or add real approved app screenshots later if desired.
-- Check `joinpins.app` and metadata if the production domain changes.
+Read the [full website audit, service inventory, asset provenance, checks, and release gates](docs/website-trust-audit.md).
 
-Account deletion happens in the app; the website has no login or deletion form. Exact data deletion timelines are intentionally unspecified.
+Required owner follow-ups include the monitored mailbox/request workflow; legal operator/contact/jurisdiction details; applicable processing bases, providers and retention practices; age eligibility; the shipping app's location, visibility and deletion behavior; and brand asset rights. Policies describe supported website facts and do not certify legal compliance or substitute for an app SDK/privacy audit.
+
+No refunds page is needed while there are no paid products. No cookie banner is included while the website has no optional tracking. Check any external email templates/marketing before calling unsubscribe handling complete. Add real TestFlight/App Store/open-app targets only after verification.
+
+Do not run `scripts/create-og.ps1` during website-only work: it invokes brand-generation scripts in the adjacent mobile repository. Existing exported brand assets are preserved.

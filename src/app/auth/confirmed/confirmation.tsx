@@ -30,7 +30,7 @@ function subscribe(onChange: () => void) {
 
 const copy = {
   pending: { title: "Email confirmation", body: "Loading your confirmation result…" },
-  success: { title: "Email confirmed", body: "Your account is ready. Head back to Pins and start saving places." },
+  success: { title: "Return to Pins", body: "If you followed the verification link in your email, return to Pins and try signing in. This page cannot check your account’s confirmation status." },
   expired: { title: "This link has expired", body: "This confirmation link is invalid or has expired. Get help with a new email to finish signing up." },
   error: { title: "We couldn’t confirm your email", body: "Try the link in your latest confirmation email, or get help signing in." },
 };
@@ -45,7 +45,7 @@ export function Confirmation({ appOpenUrl }: { appOpenUrl: string | null }) {
     <>
       <div role="status" aria-live="polite" aria-atomic="true" className={styles.status}>
         <span className={`${styles.indicator} ${failed ? styles.errorIndicator : ""}`} aria-hidden="true">
-          {failed ? <span className={styles.exclamation}>!</span> : <Icon name={state === "success" ? "check" : "mail"} size={30} />}
+          {failed ? <span className={styles.exclamation}>!</span> : <Icon name="mail" size={30} />}
         </span>
         <h1 className={styles.title}>{message.title}</h1>
         <p className={styles.copy}>{message.body}</p>
