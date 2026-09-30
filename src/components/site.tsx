@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Icon } from "./icons";
-import { emailHref, policyUpdated, policyUpdatedLabel, supportEmail } from "@/lib/site-config";
+import { emailHref, policyUpdated, policyUpdatedLabel, supportEmail, supportHref } from "@/lib/site-config";
 
 export function Logo() {
   return <Link href="/" className="logo" aria-label="Pins home"><Image className="logo-mark" src="/brand/mark.svg" width={36} height={36} alt="" unoptimized />pins<span className="logo-period">.</span></Link>;
@@ -17,7 +17,7 @@ export function Footer() {
       <div className="footer-brand"><Logo /><p>A little more connected<br />to your world.</p></div>
       <nav aria-label="Product"><h2>Product</h2><Link href="/#features">Meet Pins</Link><Link href="/#coming-soon">Coming soon</Link></nav>
       <nav aria-label="Legal"><h2>Legal</h2><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/cookies">Cookies</Link><Link href="/data-request">Data Requests</Link></nav>
-      <nav aria-label="Help"><h2>Contact</h2><Link href="/support">Support</Link><Link href="/delete-account">Account deletion</Link><a href={emailHref()}>Email Pins</a></nav>
+      <nav aria-label="Help"><h2>Contact</h2><Link href="/support">Support</Link><Link href="/delete-account">Account deletion</Link><a href={supportHref}>Email Pins</a></nav>
     </div>
     <div className="footer-bottom"><p>Pins · joinpins.app</p><p>Save places. Share maps.</p></div>
   </footer>;

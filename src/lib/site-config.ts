@@ -12,3 +12,5 @@ export function emailHref(subject?: string, body?: string) {
 // Blank template only: never prefill user data. CRLF line breaks per RFC 6068.
 export const privacyRequestBody = ["Hi Pins Support,", "", "I’m contacting you regarding a privacy/data request.", "", "Pins username or account email:", "Request:"].join("\r\n");
 export const privacyRequestHref = emailHref("Privacy Request", privacyRequestBody);
+export const betaAccessHref = emailHref("Beta Access", ["Hi Pins Support,", "", "I’m interested in beta access to Pins.", "", "Name:", "Email:"].join("\r\n"));
+export const supportHref = emailHref("Pins Support", ["Hi Pins Support,", "", "I’m reaching out about:"].join("\r\n"));

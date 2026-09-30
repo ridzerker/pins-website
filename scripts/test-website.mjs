@@ -45,6 +45,12 @@ const routes = ["/", "/privacy/", "/terms/", "/cookies/", "/data-request/", "/su
 const axeSource = await fs.readFile(require.resolve("axe-core/axe.min.js"), "utf8");
 const privacyRequestBody = "Hi Pins Support,\r\n\r\nI’m contacting you regarding a privacy/data request.\r\n\r\nPins username or account email:\r\nRequest:";
 let privacyRequestLinks = 0;
+// Other email CTAs: exact recipient, subject, and blank template (no user data).
+const emailCtas = {
+  "Ask about beta access": { subject: "Beta Access", body: "Hi Pins Support,\r\n\r\nI’m interested in beta access to Pins.\r\n\r\nName:\r\nEmail:", found: 0 },
+  "Email Pins": { subject: "Pins Support", body: "Hi Pins Support,\r\n\r\nI’m reaching out about:", found: 0 },
+};
+const allowedEmailBodies = [privacyRequestBody, ...Object.values(emailCtas).map(cta => cta.body)];
 
 try {
   for (const route of routes) {
@@ -102,8 +108,14 @@ try {
       if (link.href.startsWith("mailto:")) {
         const email = new URL(link.href);
         assert.equal(email.pathname, "support@joinpins.app");
-        // Only the blank privacy-request template may prefill a body; never private user data.
-        if (email.searchParams.has("body")) assert.equal(email.searchParams.get("body"), privacyRequestBody);
+        // Only known blank templates may prefill a body; never private user data.
+        if (email.searchParams.has("body")) assert.ok(allowedEmailBodies.includes(email.searchParams.get("body")), `Unexpected email body at ${route}`);
+        const cta = emailCtas[link.name];
+        if (cta) {
+          assert.equal(email.searchParams.get("subject"), cta.subject, `${link.name} subject at ${route}`);
+          assert.equal(email.searchParams.get("body"), cta.body, `${link.name} body at ${route}`);
+          cta.found++;
+        }
         if (link.name === "Email a privacy request") {
           assert.equal(email.searchParams.get("subject"), "Privacy Request");
           assert.equal(email.searchParams.get("body"), privacyRequestBody);
@@ -140,6 +152,7 @@ try {
   }
 
   assert.ok(privacyRequestLinks > 0, "Privacy request email link not found");
+  for (const [name, cta] of Object.entries(emailCtas)) assert.ok(cta.found > 0, `${name} email link not found`);
   for (const [suffix, expected] of [
     ["", "Return to Pins"],
     ["#error=access_denied&error_code=otp_expired", "This link has expired"],
