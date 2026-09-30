@@ -43,6 +43,8 @@ page.on("request", request => { if (!request.url().startsWith(origin) && !reques
 const report = { routes: [], links: [], confirmations: [], externalRequests: [], errors: [], screenshots: [] };
 const routes = ["/", "/privacy/", "/terms/", "/cookies/", "/data-request/", "/support/", "/delete-account/", "/auth/confirmed/", "/missing-page/"];
 const axeSource = await fs.readFile(require.resolve("axe-core/axe.min.js"), "utf8");
+const privacyRequestBody = "Hi Pins Support,\r\n\r\nI’m contacting you regarding a privacy/data request.\r\n\r\nPins username or account email:\r\nRequest:";
+let privacyRequestLinks = 0;
 
 try {
   for (const route of routes) {
@@ -99,8 +101,14 @@ try {
       assert.ok(link.href && link.href !== "#", `Empty link at ${route}`);
       if (link.href.startsWith("mailto:")) {
         const email = new URL(link.href);
-        assert.match(email.pathname, /^[^\s@]+@[^\s@]+\.[^\s@]+$/);
-        assert.ok(!email.searchParams.has("body"), "Do not prefill private user data");
+        assert.equal(email.pathname, "support@joinpins.app");
+        // Only the blank privacy-request template may prefill a body; never private user data.
+        if (email.searchParams.has("body")) assert.equal(email.searchParams.get("body"), privacyRequestBody);
+        if (link.name === "Email a privacy request") {
+          assert.equal(email.searchParams.get("subject"), "Privacy Request");
+          assert.equal(email.searchParams.get("body"), privacyRequestBody);
+          privacyRequestLinks++;
+        }
         report.links.push({ route, ...link, result: "Mail destination syntax checked; no message sent or delivery verified" });
         continue;
       }
@@ -131,6 +139,7 @@ try {
     assert.ok(seen.size > 4, `Keyboard navigation stalled on ${route}`);
   }
 
+  assert.ok(privacyRequestLinks > 0, "Privacy request email link not found");
   for (const [suffix, expected] of [
     ["", "Return to Pins"],
     ["#error=access_denied&error_code=otp_expired", "This link has expired"],
