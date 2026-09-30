@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 const root = path.resolve("out");
 const artifacts = path.resolve(".preview/sprint");
 await fs.mkdir(artifacts, { recursive: true });
-const mime = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".woff2": "font/woff2", ".txt": "text/plain", ".xml": "application/xml" };
+const mime = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".woff2": "font/woff2", ".txt": "text/plain", ".xml": "application/xml" };
 const server = createServer(async (req, res) => {
   let filename;
   try {
@@ -51,6 +51,9 @@ try {
       const response = await page.goto(origin + route);
       assert.equal(response.status(), route === "/missing-page/" ? 404 : 200, route);
       await page.evaluate(() => document.fonts.ready);
+      // Load lazy images too, so broken or undecodable app screenshots fail the run.
+      const brokenImages = await page.evaluate(() => Promise.all([...document.images].map(img => { img.loading = "eager"; return img.decode().then(() => null, () => img.currentSrc || img.src); })).then(results => results.filter(Boolean)));
+      assert.deepEqual(brokenImages, [], `${route} images failed to load at ${width}`);
       const layout = await page.evaluate(() => ({
         width: innerWidth, scroll: document.documentElement.scrollWidth,
         h1: document.querySelectorAll("h1").length,

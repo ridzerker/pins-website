@@ -24,23 +24,28 @@ The browser suite covers every route and link, 320/390/430/768/1024/1440 widths,
 
 ## Routes and shared code
 
-- `/`: landing page and four feature blocks; illustrated app UI, not a live map.
+- `/`: landing page and four feature blocks; real Pins app screenshots (static images), not a live map.
 - `/privacy`, `/terms`, `/cookies`: website policies.
-- `/data-request`: privacy/account request guidance and contact availability.
+- `/data-request`: privacy/account request guidance and the email request route.
 - `/support`, `/delete-account`: help and existing in-app deletion guidance.
 - `/auth/confirmed`: display-only post-verification guidance; never confirms an account itself. See [email confirmation setup](docs/email-confirmation.md).
 - `src/components/site.tsx`: header, footer, contact display, document layout.
-- `src/lib/site-config.ts`: contact address and policy revision date.
+- `src/lib/site-config.ts`: support address (`support@joinpins.app`) and policy revision date.
 - `src/app/layout.tsx`, `globals.css`, `fonts/`: self-hosted Inter, global design tokens, responsive styling. The font's SIL OFL license is included.
-- `src/components/map-preview.tsx`, `icons.tsx`, `public/brand/`: local artwork.
+- `src/components/app-screens.tsx`, `src/assets/app/`: real app screenshots (hero phone and feature cards).
+- `src/components/icons.tsx`, `public/brand/`: local icons and brand artwork.
 
-The site has no forms, cookie consent state, optional tracking, or embedded third-party content. Example initials, place names, and counts are fictional illustration content, not testimonials or user statistics.
+The site has no forms, cookie consent state, optional tracking, or embedded third-party content. There are no testimonials, ratings, or user statistics; names, places, and counts visible inside app screenshots are real app content, not endorsements.
 
-## Contact setup — required before release
+## App screenshots
 
-The original brief used **support@joinpins.app**, but the prior README explicitly marked it as a placeholder requiring mailbox setup. No monitored mailbox has been confirmed in this sprint. `supportEmail` in `src/lib/site-config.ts` therefore remains `null`. Public support and data-request pages clearly explain that email requests are unavailable, and no placeholder mail links are rendered.
+Product imagery is real screenshots of the Pins iPhone app supplied by the owner (September 29, 2026). Files in `src/assets/app/` are WebP derivatives that are only cropped and resized; never redraw, retouch, or alter the UI inside them. Static export has no image optimizer, so they are pre-sized for high-DPI screens (hero 828px wide, feature crops 720px) and rendered with `next/image` using `unoptimized`. Regenerate from the original 1170×2532 PNGs with `sharp` if a screen changes. The Keep Control card intentionally uses an abstract diagram because no supplied screenshot shows the audience picker.
 
-After the owner confirms a real receiving address, set that constant to the address and rebuild. This enables the privacy-request email button and direct address, support contact, and beta-availability inquiry. Test receipt and the actual request-handling process separately; the website cannot verify mailbox delivery or execute account deletion. The inquiry is not a newsletter subscription. No email is sent automatically.
+## Support contact
+
+**support@joinpins.app** is the official, working Pins support mailbox (confirmed by the owner on September 29, 2026). It is set once as `supportEmail` in `src/lib/site-config.ts` and used for support, privacy/data requests, policy questions, and beta-availability inquiries through `mailto:` links. Change it only there.
+
+The website only opens the visitor's email app; it does not send email, submit requests, or execute account deletion. The beta inquiry is not a newsletter subscription.
 
 ## Deploy
 
@@ -52,7 +57,7 @@ Vercel is suggested by the original setup, but the actual hosting/dashboard conf
 
 Read the [full website audit, service inventory, asset provenance, checks, and release gates](docs/website-trust-audit.md).
 
-Required owner follow-ups include the monitored mailbox/request workflow; legal operator/contact/jurisdiction details; applicable processing bases, providers and retention practices; age eligibility; the shipping app's location, visibility and deletion behavior; and brand asset rights. Policies describe supported website facts and do not certify legal compliance or substitute for an app SDK/privacy audit.
+Required owner follow-ups include the privacy-request handling and fulfillment workflow (the support mailbox itself is confirmed); legal operator/contact/jurisdiction details; applicable processing bases, providers and retention practices; age eligibility; the shipping app's location, visibility and deletion behavior; and brand asset rights. Policies describe supported website facts and do not certify legal compliance or substitute for an app SDK/privacy audit.
 
 No refunds page is needed while there are no paid products. No cookie banner is included while the website has no optional tracking. Check any external email templates/marketing before calling unsubscribe handling complete. Add real TestFlight/App Store/open-app targets only after verification.
 

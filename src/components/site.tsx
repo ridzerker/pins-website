@@ -17,15 +17,14 @@ export function Footer() {
       <div className="footer-brand"><Logo /><p>A little more connected<br />to your world.</p></div>
       <nav aria-label="Product"><h2>Product</h2><Link href="/#features">Meet Pins</Link><Link href="/#coming-soon">Coming soon</Link></nav>
       <nav aria-label="Legal"><h2>Legal</h2><Link href="/privacy">Privacy</Link><Link href="/terms">Terms</Link><Link href="/cookies">Cookies</Link><Link href="/data-request">Data Requests</Link></nav>
-      <nav aria-label="Help"><h2>Contact</h2><Link href="/support">Support</Link><Link href="/delete-account">Account deletion</Link>{supportEmail && <a href={emailHref()!}>Email Pins</a>}</nav>
+      <nav aria-label="Help"><h2>Contact</h2><Link href="/support">Support</Link><Link href="/delete-account">Account deletion</Link><a href={emailHref()}>Email Pins</a></nav>
     </div>
-    <div className="footer-bottom"><p>© {new Date().getFullYear()} Pins.</p><p>Save places. Share maps.</p></div>
+    <div className="footer-bottom"><p>Pins · joinpins.app</p><p>Save places. Share maps.</p></div>
   </footer>;
 }
 
 export function ContactDetails({ subject = "Pins support" }: { subject?: string }) {
-  const href = emailHref(subject);
-  return href ? <a href={href}>{supportEmail}</a> : <span>Our email contact channel is not available yet. Please check this page for updates.</span>;
+  return <a href={emailHref(subject)}>{supportEmail}</a>;
 }
 
 export function DocumentPage({ label, title, intro, updated = false, contents, children }: {
