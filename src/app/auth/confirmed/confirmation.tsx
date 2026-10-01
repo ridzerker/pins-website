@@ -28,11 +28,13 @@ function subscribe(onChange: () => void) {
   };
 }
 
-const copy = {
+const failedNext = "Already confirmed? Return to the Pins app and sign in. If not, contact support and we’ll help you get a new link.";
+const copy: Record<"pending" | ReturnType<typeof readState>, { title: string; body: string; next?: string }> = {
   pending: { title: "Email confirmation", body: "Loading your confirmation result…" },
-  success: { title: "Return to Pins", body: "If you followed the verification link in your email, return to Pins and try signing in. This page cannot check your account’s confirmation status." },
-  expired: { title: "This link has expired", body: "This confirmation link is invalid or has expired. Get help with a new email to finish signing up." },
-  error: { title: "We couldn’t confirm your email", body: "Try the link in your latest confirmation email, or get help signing in." },
+  confirmed: { title: "Email confirmed", body: "Your Pins account is ready.", next: "Return to the Pins app and sign in to continue." },
+  neutral: { title: "Return to Pins", body: "Open the Pins app and sign in. If you haven’t confirmed your email yet, tap the link in your latest confirmation email." },
+  expired: { title: "We couldn’t confirm your email", body: "This confirmation link may have expired or already been used.", next: failedNext },
+  error: { title: "We couldn’t confirm your email", body: "This confirmation link couldn’t be completed.", next: failedNext },
 };
 
 export function Confirmation({ appOpenUrl }: { appOpenUrl: string | null }) {
@@ -40,24 +42,24 @@ export function Confirmation({ appOpenUrl }: { appOpenUrl: string | null }) {
   const state = useSyncExternalStore(subscribe, readState, () => "pending" as const);
   const message = copy[state];
   const failed = state === "expired" || state === "error";
+  const confirmed = state === "confirmed";
 
   return (
     <>
       <div role="status" aria-live="polite" aria-atomic="true" className={styles.status}>
-        <span className={`${styles.indicator} ${failed ? styles.errorIndicator : ""}`} aria-hidden="true">
-          {failed ? <span className={styles.exclamation}>!</span> : <Icon name="mail" size={30} />}
+        <span className={`${styles.indicator} ${failed ? styles.errorIndicator : ""} ${confirmed ? styles.successIndicator : ""}`} aria-hidden="true">
+          {failed ? <span className={styles.exclamation}>!</span> : <Icon name={confirmed ? "check" : "mail"} size={30} />}
         </span>
         <h1 className={styles.title}>{message.title}</h1>
-        <p className={styles.copy}>{message.body}</p>
+        <p className={`${styles.copy} ${confirmed ? styles.lead : ""}`}>{message.body}</p>
+        {message.next && <p className={styles.next}>{message.next}</p>}
       </div>
       <div className={styles.actions}>
-        {appOpenUrl ? (
+        {appOpenUrl && (
           <>
             <a className={`button primary ${styles.primary}`} href={appOpenUrl} rel="noreferrer">Open Pins <Icon name="arrow" size={18} /></a>
             <p className={styles.hint}>If Pins doesn’t open, open the app on your device.</p>
           </>
-        ) : (
-          <p className={styles.hint}>Open Pins on your device{state === "success" ? " to sign in." : "."}</p>
         )}
         {failed && <Link href="/support" className={styles.support}>Get help with confirmation <Icon name="arrow" size={16} /></Link>}
         <Link href="/" className={appOpenUrl ? styles.home : `button primary ${styles.primary}`}>Back to Pins website{!appOpenUrl && <Icon name="arrow" size={18} />}</Link>

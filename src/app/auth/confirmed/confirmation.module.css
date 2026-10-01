@@ -27,6 +27,7 @@
   background: var(--pale);
 }
 .errorIndicator { background: #f3eade; color: #765736; }
+.successIndicator { background: var(--green); color: #fff; }
 .exclamation { font-size: 30px; font-weight: 500; }
 .title {
   max-width: 400px;
@@ -39,6 +40,15 @@
 .copy {
   max-width: 345px;
   margin-top: 18px;
+  color: var(--muted);
+  font-size: var(--text-body);
+  line-height: 1.7;
+  text-wrap: pretty;
+}
+.lead { color: var(--ink); font-size: var(--text-large); font-weight: 500; line-height: 1.5; }
+.next {
+  max-width: 345px;
+  margin-top: 8px;
   color: var(--muted);
   font-size: var(--text-body);
   line-height: 1.7;

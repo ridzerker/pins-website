@@ -6,9 +6,9 @@ Canonical public destination: **https://www.joinpins.app/auth/confirmed**. The e
 
 Mobile signup → Supabase confirmation email → Supabase verifies the link → website displays the result → user returns to Pins to sign in. The website does not verify tokens, exchange codes, create a session, or access Supabase. No callback endpoint, SDK, credentials, or resend form is needed.
 
-The page shell, metadata, shared header/logo/footer, and surface are prerendered. Only the result panel reads browser query/fragment parameters. It renders neutral copy until hydration, then return-to-app guidance by default, invalid/expired for recognized link failures, or generic failure for other errors. Errors in either source take precedence, including duplicate keys. Raw error text is never displayed. Token/token-hash/PKCE-code callbacks and non-signup auth types fail safely instead of claiming verification. A direct visit shows return-to-app guidance and explicitly says that the website cannot check account confirmation. The internal no-error state is not proof of verification or an authorization check.
+The page shell, metadata, shared header/logo/footer, and surface are prerendered. Only the result panel reads browser query/fragment parameters. It renders neutral copy until hydration, then: **Email confirmed** only when the fragment carries Supabase's implicit-flow signup success redirect (`#access_token=…&type=signup`, which Supabase issues only after the link verifies); invalid/expired for recognized link failures (Supabase returns the same `otp_expired` for expired, invalid, and already-used links, so the page never claims "already confirmed"); generic failure for other errors; and neutral return-to-app guidance for a direct visit. Errors in either source take precedence, including duplicate keys. Raw error text is never displayed. Token/token-hash/PKCE-code callbacks and non-signup auth types fail safely instead of claiming verification. The website still does not call Supabase; a hand-crafted success fragment or `?status=confirmed` only changes what that visitor sees and grants nothing.
 
-Ordinary document anchors, including the keyboard skip target, are preserved. Recognized credentials and raw errors are removed with `history.replaceState`, retaining a fixed error code for reload/back behavior. No tokens are stored, logged, or passed to the app. A `no-referrer` meta policy limits referrer leakage, but incoming query strings still reach the hosting server before JavaScript cleans them. Keep the standard Supabase verification URL; do not put verification tokens in this website's query string. There is no analytics. JavaScript-disabled visitors see neutral guidance. Metadata is `noindex, nofollow`; the route is not added to navigation or sitemap.
+Ordinary document anchors, including the keyboard skip target, are preserved. Recognized credentials (including Supabase's `sb` marker) and raw errors are removed with `history.replaceState`, retaining only a fixed `?status=confirmed` or `?error_code=…` so reload/back keeps the same state. No tokens are stored, logged, or passed to the app. A `no-referrer` meta policy limits referrer leakage, but incoming query strings still reach the hosting server before JavaScript cleans them. Keep the standard Supabase verification URL; do not put verification tokens in this website's query string. There is no analytics. JavaScript-disabled visitors see neutral guidance. Metadata is `noindex, nofollow`; the route is not added to navigation or sitemap.
 
 ## Repository audit (September 18, 2026)
 
@@ -109,3 +109,23 @@ Focused tests need Node 22.6+ (Node 24 recommended). Review success/errors at 37
 ## September 28 website sprint update
 
 The current site uses self-hosted Inter and shared typography/control tokens. The no-error panel no longer declares “Email confirmed”; it explains the verification limitation. Skip-link anchors are preserved by cleanup and covered by a regression test. The full website browser suite now covers responsive layout, keyboard links, and confirmation hydration/errors; see [current audit results](website-trust-audit.md). The support mailbox support@joinpins.app was confirmed by the owner on September 29, 2026 and is linked across the site. Earlier implementation limitations above describe the September 18 audit, not the current local test results. Live Supabase, production email and installed-device verification remain outstanding.
+
+## September 30 confirmation clarity update
+
+Production probe (synthetic invalid token against `/auth/v1/verify`, no real user): Site URL fallback is `https://www.joinpins.app`; `https://www.joinpins.app/auth/confirmed` is allowlisted; the apex domain is not (falls back to www). Vercel 308s `/auth/confirmed` → `/auth/confirmed/`, and the browser keeps the fragment. The shipped mobile signup (Pins commit 665342b) already sends `emailRedirectTo: 'https://www.joinpins.app/auth/confirmed'` and uses the default implicit flow, so the "Required mobile change" above is done.
+
+The success redirect is now shown as **Email confirmed / Your Pins account is ready. / Return to the Pins app and sign in to continue.** Failures say **We couldn't confirm your email**, that the link may have expired or already been used, and to sign in if already confirmed or contact support for a new link (the app has no resend button).
+
+### Confirm signup email template (Supabase dashboard only)
+
+The live template is not in either repository and the CLI cannot read it (`supabase config push` would overwrite production with local dev settings — do not use it). Paste in **Authentication → Emails → Confirm signup**. Keep `{{ .ConfirmationURL }}`; do not change other templates.
+
+Subject: `Confirm your Pins email`
+
+```html
+<h2 style="font-family:Arial,sans-serif;color:#1d1d1f;">Confirm your Pins email</h2>
+<p style="font-family:Arial,sans-serif;color:#1d1d1f;font-size:16px;line-height:1.6;">Confirm your email to finish setting up your Pins account.</p>
+<p><a href="{{ .ConfirmationURL }}" style="display:inline-block;padding:12px 24px;background:#3f7d5a;color:#ffffff;border-radius:999px;font-family:Arial,sans-serif;font-weight:bold;text-decoration:none;">Confirm email</a></p>
+<p style="font-family:Arial,sans-serif;color:#60645c;font-size:15px;line-height:1.6;">After confirming, return to the Pins app and sign in.</p>
+<p style="font-family:Arial,sans-serif;color:#60645c;font-size:13px;line-height:1.6;">If you didn't create a Pins account, you can ignore this email.</p>
+```

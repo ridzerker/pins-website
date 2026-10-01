@@ -28,7 +28,7 @@ The browser suite covers every route and link, 320/390/430/768/1024/1440 widths,
 - `/privacy`, `/terms`, `/cookies`: website policies.
 - `/data-request`: privacy/account request guidance and the email request route.
 - `/support`, `/delete-account`: help and existing in-app deletion guidance.
-- `/auth/confirmed`: display-only post-verification guidance; never confirms an account itself. See [email confirmation setup](docs/email-confirmation.md).
+- `/auth/confirmed`: shows "Email confirmed" only for Supabase's signup success redirect; never verifies or confirms an account itself. See [email confirmation setup](docs/email-confirmation.md).
 - `src/components/site.tsx`: header, footer, contact display, document layout.
 - `src/lib/site-config.ts`: support address (`support@joinpins.app`) and policy revision date.
 - `src/app/layout.tsx`, `globals.css`, `fonts/`: self-hosted Inter, global design tokens, responsive styling. The font's SIL OFL license is included.

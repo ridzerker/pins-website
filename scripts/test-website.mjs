@@ -38,6 +38,7 @@ const context = await browser.newContext({ reducedMotion: "reduce" });
 const page = await context.newPage();
 const errors = [];
 page.on("pageerror", error => errors.push(error.message));
+page.on("console", message => { if (/TEST_ONLY/.test(message.text())) errors.push("Token printed to console"); });
 const externalRequests = new Set();
 page.on("request", request => { if (!request.url().startsWith(origin) && !request.url().startsWith("data:")) externalRequests.add(request.url()); });
 const report = { routes: [], links: [], confirmations: [], externalRequests: [], errors: [], screenshots: [] };
@@ -153,17 +154,19 @@ try {
 
   assert.ok(privacyRequestLinks > 0, "Privacy request email link not found");
   for (const [name, cta] of Object.entries(emailCtas)) assert.ok(cta.found > 0, `${name} email link not found`);
-  for (const [suffix, expected] of [
+  for (const [suffix, expected, detail] of [
     ["", "Return to Pins"],
-    ["#error=access_denied&error_code=otp_expired", "This link has expired"],
-    ["?error_code=invalid_token", "This link has expired"],
-    ["?error=server_error", "We couldn’t confirm your email"],
-    ["?token_hash=TEST_ONLY&type=email", "We couldn’t confirm your email"],
-    ["#access_token=TEST_ONLY&refresh_token=TEST_ONLY&type=signup", "Return to Pins"],
+    ["#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired&sb=", "We couldn’t confirm your email", "may have expired or already been used"],
+    ["?error_code=invalid_token", "We couldn’t confirm your email", "may have expired or already been used"],
+    ["?error=server_error", "We couldn’t confirm your email", "couldn’t be completed"],
+    ["?token_hash=TEST_ONLY&type=email", "We couldn’t confirm your email", "couldn’t be completed"],
+    ["#access_token=TEST_ONLY&expires_at=1&expires_in=3600&refresh_token=TEST_ONLY&token_type=bearer&type=signup&sb=", "Email confirmed", "Your Pins account is ready."],
   ]) {
     await page.goto(origin + "/auth/confirmed/" + suffix);
     await page.getByRole("heading", { name: expected, exact: true }).waitFor();
     assert.ok(!page.url().includes("TEST_ONLY"));
+    for (const check of [await page.content(), page.url()]) assert.ok(!/TEST_ONLY|access_token|refresh_token/.test(check), "Token leaked into page or URL");
+    if (detail) await page.getByText(detail).waitFor();
     await page.reload();
     await page.getByRole("heading", { name: expected, exact: true }).waitFor();
     report.confirmations.push({ suffix, expected, result: "Passed after hydration and reload" });
