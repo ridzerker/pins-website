@@ -995,6 +995,9 @@ button:disabled, .button[aria-disabled="true"] {
   font-weight: 500;
   margin-bottom: .5rem;
 }
+.document-body p + h3, .document-body ul + h3 {
+  margin-top: 1.5rem;
+}
 .document-body .button {
   color: white;
   text-decoration: none;

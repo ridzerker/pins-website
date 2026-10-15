@@ -2,6 +2,15 @@
 
 Audit date: September 28, 2026. Scope: this standalone website repository only. No mobile application or production infrastructure changes. These findings are not a certification of legal compliance.
 
+## Update — October 14, 2026: Privacy Policy app audit
+
+The Privacy Policy now covers the app, verified read-only against `../Pins` at 576aa20, the live schema capture `../Pins/.cache/engagement-deploy/live-catalog.json` (October 9, plus the applied 20261008000100 migration), live public endpoints, and DNS. No app, database, or Supabase setting was changed.
+
+- **Providers confirmed:** Supabase (auth, Postgres, private `profile-avatars` bucket, `delete-account` Edge Function; project `us-west-2`), Apple (Sign in with Apple, MapKit map and local search on iOS, TestFlight), Google (OAuth sign-in; enabled live), MapTiler (search fallback on iOS; map/search on other platforms), Vercel (website), IONOS (support mailbox MX/SPF). No analytics, crash-reporting, advertising, or push SDKs; search telemetry has no sink and location traces are `__DEV__`-only.
+- **Location:** foreground permission requested on Home map load, `Accuracy.Balanced`, kept in memory only; sent as a search bias (Apple region or MapTiler proximity/bbox, or MapTiler IP proximity). Pin coordinates are the placed map point, stored with the pin.
+- **Visibility:** all reads require sign-in; restrictive `can_read_pin_sharing` guard (owner, public pin of visible public profile, or Circle audience; blocks excluded). Profiles default public (`public_profile_enabled` default true; onboarding never sets it). New pins default Public + all Circles (`pinIsPublic` initial true). Private profiles are findable by username/display name (3+ characters). Star totals readable for any unblocked profile.
+- **Deletion:** in-app DELETE → Edge Function removes avatar objects, runs `delete_user_app_data`, then `auth.admin.deleteUser`; remaining user-linked rows cascade. Others' saved copies persist unlinked; others' pins in deleted Circles are kept; `reports` rows keep with null reporter. Residual: Supabase logs, manual pre-maintenance backups in `C:\Users\Windows 11\PinsBackups`, support mailbox, Apple TestFlight data.
+
 ## Update — October 14, 2026: public iOS beta on TestFlight
 
 - **Download CTAs are live.** The public TestFlight invitation (`https://testflight.apple.com/join/MYXCR7bj`, HTTP 200, "Join the Pins — Social Map beta", not full when checked) replaces every coming-soon target. It is centralized as `testFlightUrl` in `src/lib/site-config.ts` and used by the header, hero, `#download` section (formerly `#coming-soon`), footer, and Support. A desktop-only QR code is generated from the same constant at build time; it was decoded back to the exact URL at 1x and 2x. The "Ask about beta access" email CTA and its `betaAccessHref` template were removed.
