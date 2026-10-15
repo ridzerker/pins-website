@@ -6,7 +6,7 @@ import styles from "./confirmation.module.css";
 export const metadata: Metadata = {
   title: "Email confirmation",
   description: "Your Pins email confirmation. Return to the app when you're ready.",
-  alternates: { canonical: "https://www.joinpins.app/auth/confirmed/" },
+  alternates: { canonical: "/auth/confirmed/" },
   robots: { index: false, follow: false },
   referrer: "no-referrer",
 };

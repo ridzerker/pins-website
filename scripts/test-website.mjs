@@ -48,10 +48,15 @@ const privacyRequestBody = "Hi Pins Support,\r\n\r\nI’m contacting you regardi
 let privacyRequestLinks = 0;
 // Other email CTAs: exact recipient, subject, and blank template (no user data).
 const emailCtas = {
-  "Ask about beta access": { subject: "Beta Access", body: "Hi Pins Support,\r\n\r\nI’m interested in beta access to Pins.\r\n\r\nName:\r\nEmail:", found: 0 },
   "Email Pins": { subject: "Pins Support", body: "Hi Pins Support,\r\n\r\nI’m reaching out about:", found: 0 },
 };
 const allowedEmailBodies = [privacyRequestBody, ...Object.values(emailCtas).map(cta => cta.body)];
+// The only off-site destinations: the public beta invitation and Apple's TestFlight app.
+const testFlightUrl = "https://testflight.apple.com/join/MYXCR7bj";
+const allowedExternalLinks = [testFlightUrl, "https://apps.apple.com/app/testflight/id899247664"];
+// Header and footer on every page; the home page adds the hero and download CTAs.
+const minTestFlightLinks = route => route === "/" ? 4 : 2;
+const outdatedCopy = /coming soon|preparing for beta|ask about beta access|not offered on this website yet/i;
 
 try {
   for (const route of routes) {
@@ -79,6 +84,12 @@ try {
       assert.equal(layout.local + layout.session, 0, "Unexpected browser storage");
       assert.equal(layout.imagesWithoutAlt, 0);
       assert.deepEqual(layout.missingTargets, []);
+      assert.ok(!outdatedCopy.test(await page.locator("body").innerText()), `${route} shows outdated launch copy`);
+      if (route === "/") {
+        // The QR code is a desktop convenience: hidden on phones and small tablets.
+        const qr = await page.locator(".beta-qr").evaluate(el => getComputedStyle(el).display);
+        assert.equal(qr, width > 960 ? "flex" : "none", `QR visibility at ${width}`);
+      }
       await page.addScriptTag({ content: axeSource });
       const accessibility = await page.evaluate(async () => {
         const result = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } });
@@ -102,10 +113,20 @@ try {
     // Exercise each rendered link with the keyboard, including footer and on-page anchors.
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(origin + route);
-    const links = await page.locator("a").evaluateAll(nodes => nodes.map(a => ({ href: a.getAttribute("href"), name: a.getAttribute("aria-label") || a.textContent.trim() })));
+    const links = await page.locator("a").evaluateAll(nodes => nodes.map(a => ({ href: a.getAttribute("href"), name: a.getAttribute("aria-label") || a.textContent.trim(), target: a.getAttribute("target"), rel: a.getAttribute("rel") || "" })));
+    assert.ok(links.filter(link => link.href === testFlightUrl).length >= minTestFlightLinks(route), `TestFlight CTAs missing at ${route}`);
     for (let i = 0; i < links.length; i++) {
       const link = links[i];
       assert.ok(link.href && link.href !== "#", `Empty link at ${route}`);
+      if (/^https?:/i.test(link.href)) {
+        // Not followed: Apple's pages are outside this test. Check destination and new-tab safety.
+        assert.ok(allowedExternalLinks.includes(link.href), `Unexpected external link: ${link.href}`);
+        assert.equal(link.target, "_blank", `${link.name} target at ${route}`);
+        assert.ok(link.rel.split(/\s+/).includes("noopener") && link.rel.split(/\s+/).includes("noreferrer"), `${link.name} rel at ${route}`);
+        assert.ok(link.name.endsWith("(opens in a new tab)"), `${link.name} new-tab notice at ${route}`);
+        report.links.push({ route, ...link, result: "External destination and rel checked; not followed" });
+        continue;
+      }
       if (link.href.startsWith("mailto:")) {
         const email = new URL(link.href);
         assert.equal(email.pathname, "support@joinpins.app");
