@@ -87,3 +87,16 @@ test("server errors, network errors and wrong-profile responses never show a map
   assert.equal(ready.status, "ready");
   assert.equal(ready.map.pins.length, 1);
 });
+
+test("the committed MapLibre worker is the pinned package's worker, at the URL the map loads", async () => {
+  const fs = await import("node:fs/promises");
+  const { createRequire } = await import("node:module");
+  const require = createRequire(import.meta.url);
+  const { version } = require("maplibre-gl/package.json");
+  const canvas = await fs.readFile("src/components/public-map/map-canvas.tsx", "utf8");
+  assert.ok(canvas.includes(`"/vendor/maplibre-gl-worker-${version}.mjs"`), "MAPLIBRE_WORKER_URL matches the installed version");
+  const committed = await fs.readFile(`public/vendor/maplibre-gl-worker-${version}.mjs`);
+  const installed = await fs.readFile(require.resolve("maplibre-gl/dist/maplibre-gl-worker.mjs"));
+  assert.ok(committed.equals(installed), "Committed worker matches node_modules byte for byte");
+  await fs.access("public/vendor/maplibre-gl-LICENSE.txt");
+});

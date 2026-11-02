@@ -18,16 +18,25 @@ Opt-in public maps that anyone can open without an account, for example `joinpin
 - The map uses MapLibre GL (`maplibre-gl`, pinned) with clustered, keyboard-accessible markers.
   The base map is MapTiler Basic softened with the app's palette (`src/lib/pins-map-style.ts`,
   vendored from the app). Without a MapTiler key it falls back to a plain background. MapLibre v6
-  loads its worker from a runtime URL, so `scripts/copy-maplibre-worker.mjs` copies the pinned
-  worker into `public/vendor/` (gitignored) before `dev` and `build`.
+  loads its worker from a runtime URL that bundlers cannot see, so the pinned worker and its BSD-3
+  license are committed in `public/vendor/` (byte-exact via `.gitattributes`). After upgrading
+  `maplibre-gl`, run `node scripts/copy-maplibre-worker.mjs` and update `MAPLIBRE_WORKER_URL`;
+  `npm test` fails if they drift.
 
 Per-profile titles are set after load. Link previews use a generic "Explore this map on Pins"
 card: per-profile previews would need server rendering, a hosting change that has not been made.
 
 ## Configuration
 
-See `.env.example`. The Supabase pair is required; without it the pages show "not available".
-All values are public by design. Never add a service-role key.
+| Variable | Required | Value |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | The Pins project URL (`https://<ref>.supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | The Pins anon/publishable key (the same public key the app ships) |
+| `NEXT_PUBLIC_MAPTILER_KEY` | No | A website-only MapTiler key restricted to the site's origins; without it, pins show on a plain background |
+
+Without the Supabase pair, `/@username` pages show "This map isn't available." All three values
+are compiled into browser JavaScript and are public by design. Never add a Supabase service-role
+or secret key, or any non-`NEXT_PUBLIC_` secret. Set them for Preview first, then Production.
 
 ## Tests
 

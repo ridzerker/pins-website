@@ -5,12 +5,8 @@
     { "source": "/@:username/", "destination": "/map/" }
   ],
   "headers": [
-    {
-      "source": "/(map/?|@.*)",
-      "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
-        { "key": "Referrer-Policy", "value": "no-referrer" }
-      ]
-    }
+    { "source": "/@:username", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }, { "key": "Referrer-Policy", "value": "no-referrer" }] },
+    { "source": "/@:username/", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }, { "key": "Referrer-Policy", "value": "no-referrer" }] },
+    { "source": "/map/:path*", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }, { "key": "Referrer-Policy", "value": "no-referrer" }] }
   ]
 }

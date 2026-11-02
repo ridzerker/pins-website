@@ -1,0 +1,2 @@
+# Vendored third-party files are served byte-for-byte.
+public/vendor/** -text

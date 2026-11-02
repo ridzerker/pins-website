@@ -1,0 +1,91 @@
+# DRAFT: policy changes for public web maps
+
+Status: draft for the owner's review. **Not applied** to `src/app/privacy/page.tsx` or
+`src/app/cookies/page.tsx`. Publish together with the feature (same deploy), and set
+`policyUpdated` / `policyUpdatedLabel` in `src/lib/site-config.ts` to the publish date.
+
+Each item quotes the current text and gives the replacement.
+
+## Privacy Policy (`/privacy`)
+
+### 1. "Who can see what": opening sentence (currently untrue once maps exist)
+
+Current:
+> Pins content is available only inside the app to signed-in users; nothing is published as a public web page.
+
+Replace with:
+> Pins content is available inside the app to signed-in users. The one exception is a public web
+> map, which you can choose to publish (see “Public web maps” below).
+
+### 2. New subsection after “Pins”: “Public web maps”
+
+> You can publish a web map at joinpins.app/@yourusername from Profile, Settings, Web Map. It is
+> off until you turn it on, and only a public profile can have one. Anyone with the link can open it
+> in a web browser without a Pins account.
+>
+> A web map shows your display name, username, bio, how many public pins you have, and, for each
+> public pin, its title, category, note, place name, link, and exact location. A pin you saved from
+> someone else names the original creator only if that person also publishes a web map. It never
+> shows Only Me or Circle pins, your profile photo, followers, Circles, ratings, statuses, or when
+> you added a pin.
+>
+> Because the page works without signing in, blocking someone in Pins does not stop them from
+> viewing your web map. Web map pages ask search engines not to index them, but anyone with the
+> link can view, copy, or share what it shows, and we cannot recall copies other people make.
+>
+> Turning your web map off, making your profile private, or changing your username stops the page
+> from showing your map the next time it loads. Making your profile private turns your web map off,
+> and it stays off until you turn it on again. Changing a pin's audience or deleting it removes it
+> from your web map.
+
+### 3. “Services we use”: Supabase and MapTiler bullets
+
+Current:
+> **Supabase**: sign-in, the Pins database, profile photo storage, and account deletion. …
+> **MapTiler**: place search when Apple search is unavailable, and map display in some app versions.
+
+Replace with:
+> **Supabase**: sign-in, the Pins database, profile photo storage, account deletion, and the data
+> shown on public web maps. …
+> **MapTiler**: place search when Apple search is unavailable, map display in some app versions,
+> and the map on public web map pages.
+
+### 4. “Your choices and privacy requests”: first sentence
+
+Current:
+> In the app you can make your profile private, choose the audience for each pin, edit or delete pins, block people, and delete your account.
+
+Replace with:
+> In the app you can make your profile private, publish or turn off a public web map, choose the
+> audience for each pin, edit or delete pins, block people, and delete your account.
+
+### 5. “This website” → “Browsing”: add after the first two sentences
+
+Add:
+> Public web map pages (joinpins.app/@username) are the exception to the website's static content:
+> your browser asks the Pins database, hosted by Supabase, for that map's public data, and, to draw
+> the map, loads map images from MapTiler. These requests carry standard technical details such as
+> your IP address and browser headers. They are sent without a Pins sign-in or cookies, and they do
+> not include the address of the page you are viewing.
+
+## Cookies (`/cookies`): “What this website uses”
+
+Current:
+> App screens are static screenshots; there is no third-party map on the website.
+
+Replace with:
+> App screens are static screenshots. Public web map pages load map images from MapTiler and
+> public map data from the Pins database (Supabase). These requests are made without cookies, and
+> the page does not save anything in your browser's storage.
+
+## Facts behind the wording (verified in code and tests on 2026-11-02)
+
+- Off by default, public profiles only, forced off when private: migration `20261102000100`,
+  `public-web-map-db-check.cjs`.
+- Fields shown and not shown: the function's fixed output shape; e2e and DB tests.
+- No sign-in, cookies or referrer on the data request; no browser storage: `fetchPublicMap`
+  (`credentials: "omit"`, `referrerPolicy: "no-referrer"`), page `referrer` meta,
+  `test-public-map-e2e.mjs`.
+- `noindex`: page metadata and `vercel.json` `X-Robots-Tag` (header confirmed only on a preview).
+- Blocking: anonymous visitors have no identity, so blocks cannot apply; signed-in blocked callers
+  get nothing from the API, but the website never signs in.
