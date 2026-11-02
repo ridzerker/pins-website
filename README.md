@@ -2,7 +2,7 @@
 
 # Pins website
 
-A public website for Pins at **joinpins.app**. Next.js App Router, React, TypeScript, and Tailwind CSS; all routes export to `out/`. There is no website database, login, payment system, or third-party analytics.
+A public website for Pins at **joinpins.app**. Next.js App Router, React, TypeScript, and Tailwind CSS; all routes export to `out/`. There is no website database, login, payment system, or third-party analytics. Public map pages (`/@username`) read opted-in, public data from the Pins database in the browser; see [public maps](docs/public-maps.md).
 
 ## Development and verification
 
@@ -28,6 +28,7 @@ The browser suite covers every route and link, 320/390/430/768/1024/1440 widths,
 - `/privacy`, `/terms`, `/cookies`: website policies.
 - `/data-request`: privacy/account request guidance and the email request route.
 - `/support`, `/delete-account`: help and existing in-app deletion guidance.
+- `/@username` (rewritten to `/map/` by `vercel.json`): a user's opted-in public map. See [public maps](docs/public-maps.md).
 - `/auth/confirmed`: shows "Email confirmed" only for Supabase's signup success redirect; never verifies or confirms an account itself. See [email confirmation setup](docs/email-confirmation.md).
 - `src/components/site.tsx`: header, footer, contact display, document layout.
 - `src/lib/site-config.ts`: production URL, support address (`support@joinpins.app`), TestFlight invitation, and policy revision date.

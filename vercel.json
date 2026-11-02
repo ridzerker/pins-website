@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    { "source": "/@:username", "destination": "/map/" },
+    { "source": "/@:username/", "destination": "/map/" }
+  ],
+  "headers": [
+    {
+      "source": "/(map/?|@.*)",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    }
+  ]
+}
