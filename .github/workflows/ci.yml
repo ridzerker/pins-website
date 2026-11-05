@@ -1,0 +1,33 @@
+# Checks only: no deployment, no secrets. Vercel handles deployments separately.
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Fixture values only. The browser tests answer the database request themselves.
+      NEXT_PUBLIC_SUPABASE_URL: https://fixture.supabase.invalid
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: e2e-anon-key
+      PINS_TEST_BROWSER: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npm run test:public-map
+      - run: npm run test:website

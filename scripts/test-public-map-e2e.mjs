@@ -153,6 +153,17 @@ try {
   assert.deepEqual(consoleErrors, [], "No console errors or Content-Security-Policy violations on a working map");
   pass("a working map runs under the real security headers with no console errors");
 
+  const markerCount = expected => page.waitForFunction(count => document.querySelectorAll(".maplibregl-marker").length === count, expected, { timeout: 15000 });
+  // A keyboard user reaches a marker and opens it; a filter that hides the selected pin closes its details.
+  await page.locator('.maplibregl-marker[aria-label="Taco Spot"]').focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("heading", { name: "Taco Spot", level: 2 }).waitFor();
+  await page.getByRole("button", { name: /Coffee 1/ }).click();
+  await page.getByRole("heading", { name: "Coffee", level: 2 }).waitFor();
+  await markerCount(1);
+  assert.equal(await page.locator('.maplibregl-marker[aria-pressed="true"]').count(), 0, "No stale selection after filtering");
+  await page.getByRole("button", { name: /All 4/ }).click();
+  await markerCount(4);
   await page.getByRole("button", { name: /Coffee 1/ }).click();
   assert.equal(await page.locator("aside").getByRole("button", { name: /Taco Spot/ }).count(), 0);
   await page.locator("aside").getByRole("button", { name: /Morning Coffee/ }).waitFor();

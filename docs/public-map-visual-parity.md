@@ -23,7 +23,7 @@ is a known gap.
 | Emoji artwork | Apple Color Emoji | The visitor's system emoji: identical on iPhone and Mac, different art on Windows and Android | Differs by device |
 | Clustering | None | None up to 300 pins | Same up to 300 |
 | Above 300 pins | Draws every pin | Clusters into a Pins marker with a count, because browsers cannot move thousands of DOM markers per frame | Differs on purpose |
-| Overview camera | Fit with padding 44/32/32/32, one pin at zoom 11, shortest arc over the date line | Same | Same |
+| Overview camera | Fit with padding 44/32/32/32, one pin at zoom 11, shortest arc over the date line | Same, except 72 on the right so pins clear the zoom buttons | Same, one web-only change |
 | Selecting a pin | Center at zoom 14 in 250 ms (Home's behavior) | Same | Same |
 | Rotation, pitch | Rotation on, compass only when rotated, pitch off | Same (rotate with right-drag or two fingers) | Same |
 | Zoom buttons | None, pinch only | Kept for mouse and keyboard users | Differs on purpose |

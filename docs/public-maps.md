@@ -50,6 +50,10 @@ npm run test:marker-parity  # the app's real marker and helpers against the webs
 npm run test:website     # existing site suite
 ```
 
+`npm run verify` runs all of these with fixture values and needs no production access or credentials.
+`scripts/test-public-map-live.mjs` is separate: it uses production and only runs with the founder's approval.
+`npm run profile:public-map` measures load, panning and selection on synthetic maps of 0 to 2,000 pins.
+
 `test:public-map` covers rendering, markers and details, filters, anonymous requests, responsive
 widths with axe, unavailable states, revocation on reload, retry, empty and 2,000-pin maps, and no-JS.
 Vercel's rewrite and header behavior can only be confirmed on a preview deployment.

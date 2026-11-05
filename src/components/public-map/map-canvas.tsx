@@ -28,6 +28,8 @@ async function loadStyle(): Promise<{ style: StyleSpecification | string; basema
 type FeatureProps = { id?: string; symbol?: string; color?: string; title?: string; cluster?: boolean; cluster_id?: number; point_count?: number };
 const CLUSTER_COLOR = "#47745B"; // The app's marker base color (uiColors.accent).
 const CLUSTER_MAX_ZOOM = 15;
+// The app has no zoom buttons. This keeps a pin at the top right from framing underneath them.
+const ZOOM_CONTROL_CLEARANCE = 72;
 const GLYPH_WIDTH = 24, GLYPH_SIZE = 16, GLYPH_MIN_SIZE = 8;
 
 /** The DOM of components/PinsMarker.tsx in the app. MapLibre owns the outer element's transform, so only the inner body rotates. */
@@ -200,5 +202,5 @@ function frame(map: MapLibreMap, pins: PublicMapPin[], animate: boolean) {
   if (!points.length) return;
   if (points.length === 1) { map.jumpTo({ center: [points[0].longitude, points[0].latitude], zoom: 11 }); return; }
   const [west, south, east, north] = overviewBounds(points);
-  map.fitBounds([[west, south], [east, north]], { padding: MAP_OVERVIEW_PADDING, animate, duration: animate ? 250 : 0 });
+  map.fitBounds([[west, south], [east, north]], { padding: { ...MAP_OVERVIEW_PADDING, right: ZOOM_CONTROL_CLEARANCE }, animate, duration: animate ? 250 : 0 });
 }
