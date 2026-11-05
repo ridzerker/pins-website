@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ExternalLink } from "@/components/site";
 import { Icon } from "@/components/icons";
 import { displayNameFor, fetchPublicMap, publicMapConfig, publicMapPath, usernameFromPath, type PublicMap, type PublicMapPin, type PublicMapResult } from "@/lib/public-map";
+import { pinAppearance } from "@/lib/pins-marker";
 import { testFlightUrl } from "@/lib/site-config";
 import { MapCanvas } from "./map-canvas";
 import styles from "./public-map.module.css";
@@ -93,7 +94,7 @@ function MapPage({ map }: { map: PublicMap }) {
             <ul className={styles.list}>
               {pins.slice(0, listed).map(pin => <li key={pin.id}>
                 <button type="button" className={styles.listItem} onClick={() => setSelectedId(pin.id)}>
-                  <span className={styles.listIcon} style={{ ["--pin-color" as string]: pin.category.color ?? "#3F7D5A" }} aria-hidden="true">{pin.category.icon ?? ""}</span>
+                  <CategoryIcon category={pin.category} />
                   <span className={styles.listText}><strong>{pin.title}</strong>{pin.placeName && <small>{pin.placeName}</small>}</span>
                 </button>
               </li>)}
@@ -116,7 +117,7 @@ function PinDetails({ pin, onClose }: { pin: PublicMapPin; onClose: () => void }
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${pin.latitude.toFixed(6)},${pin.longitude.toFixed(6)}`;
   return <article className={styles.details} aria-labelledby="pin-title">
     <button type="button" className={styles.back} onClick={onClose}>← All pins</button>
-    <p className={styles.category}><span className={styles.listIcon} style={{ ["--pin-color" as string]: pin.category.color ?? "#3F7D5A" }} aria-hidden="true">{pin.category.icon ?? ""}</span>{pin.category.name}</p>
+    <p className={styles.category}><CategoryIcon category={pin.category} />{pin.category.name}</p>
     <h2 id="pin-title">{pin.title}</h2>
     {pin.placeName && <p className={styles.place}><Icon name="pin" size={16} /> {pin.placeName}</p>}
     {pin.note && <p className={styles.note}>{pin.note}</p>}
@@ -129,6 +130,11 @@ function PinDetails({ pin, onClose }: { pin: PublicMapPin; onClose: () => void }
       {pin.linkUrl && <a href={pin.linkUrl} target="_blank" rel="noopener noreferrer nofollow ugc">Visit link<span className="visually-hidden"> (opens in a new tab)</span></a>}
     </div>
   </article>;
+}
+
+function CategoryIcon({ category }: { category: PublicMapPin["category"] }) {
+  const { color, symbol } = pinAppearance(category);
+  return <span className={styles.listIcon} style={{ ["--pin-color" as string]: color }} aria-hidden="true">{symbol}</span>;
 }
 
 function useDocumentTitle(title: string | null) {

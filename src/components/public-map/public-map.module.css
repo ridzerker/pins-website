@@ -33,7 +33,6 @@
 .listItem { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 56px; padding: .5rem .25rem; border: 0; border-bottom: 1px solid var(--border); background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .listItem:hover strong { color: var(--deep); }
 .listIcon { display: inline-grid; place-items: center; flex-shrink: 0; width: 32px; height: 32px; border-radius: 10px; background: color-mix(in srgb, var(--pin-color) 22%, white); font-size: 17px; }
-.listIcon:empty::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--pin-color); }
 .listText { display: flex; flex-direction: column; min-width: 0; }
 .listText strong { font-weight: 600; overflow-wrap: anywhere; }
 .listText small { color: var(--muted); font-size: var(--text-caption); overflow-wrap: anywhere; }
@@ -52,13 +51,20 @@
 .detailLinks a { display: inline-flex; align-items: center; min-height: 44px; color: var(--deep); font-weight: 600; }
 .detailLinks a:hover { text-decoration: underline; text-underline-offset: 4px; }
 
-/* Markers (created by MapCanvas) */
-.marker { display: grid; place-items: center; width: 38px; height: 38px; padding: 0; border: 2.5px solid #fff; border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); background: var(--pin-color); box-shadow: 0 3px 8px #1d2a2133; font-size: 18px; line-height: 1; cursor: pointer; transition: transform .15s; }
-.marker > span { display: block; transform: rotate(45deg); }
-.markerDot > span { width: 10px; height: 10px; border-radius: 50%; background: #fff; }
-.markerSelected { transform: rotate(-45deg) scale(1.22); border-color: var(--ink); z-index: 2; }
-.cluster { display: grid; place-items: center; min-width: 40px; height: 40px; padding: 0 .5rem; border: 3px solid #fff; border-radius: 999px; background: var(--green); color: #fff; box-shadow: 0 3px 8px #1d2a2133; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
-.marker:focus-visible, .cluster:focus-visible { outline: 3px solid var(--deep); outline-offset: 3px; }
+/* Markers (created by MapCanvas): components/PinsMarker.tsx in the app, in the same points. MapLibre
+   sets the transform and position of .marker itself, so nothing here may set either on it.
+   iOS shadowRadius r looks like a CSS blur of 2r. */
+.marker { display: block; width: 50px; height: 54px; padding: 0; border: 0; background: none; cursor: pointer; }
+.pinHalo { position: absolute; top: 2px; left: 2px; display: none; box-sizing: border-box; width: 46px; height: 46px; border: 2px solid #365943; border-radius: 23px; background: #EAF2EC; }
+.pinBody { position: absolute; top: 8px; left: 8px; display: grid; place-items: center; box-sizing: border-box; width: 34px; height: 34px; border: 2px solid #fff; border-radius: 17px 17px 17px 5px; background: var(--pin-color); box-shadow: 0 3px 8px rgb(44 56 48 / .14); transform: rotate(-45deg); }
+.pinCenter { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 12px; background: #fff; transform: rotate(45deg); }
+.pinGlyph { display: block; max-width: 24px; overflow: hidden; color: #365943; font: 500 16px/22px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; text-align: center; white-space: nowrap; }
+.markerCount .pinGlyph { font-size: 12px; font-weight: 700; }
+.markerSelected { z-index: 3; }
+.markerSelected .pinHalo { display: block; }
+.markerSelected .pinBody { border-width: 3px; box-shadow: 0 3px 12px rgb(44 56 48 / .18); transform: rotate(-45deg) scale(1.08); }
+.marker:focus-visible { outline: 3px solid #365943; outline-offset: 1px; border-radius: 12px; }
+.map[data-rotated="false"] :global(.maplibregl-ctrl-compass) { display: none; }
 
 /* Empty, promo, unavailable */
 .empty { padding: 3rem 1.5rem; border: 1px dashed var(--border); border-radius: var(--radius-card); text-align: center; color: var(--muted); }
@@ -83,4 +89,3 @@
   .profile { grid-template-columns: 1fr; }
   .avatar { width: 64px; height: 64px; font-size: 1.35rem; }
 }
-@media (prefers-reduced-motion: reduce) { .marker { transition: none; } }

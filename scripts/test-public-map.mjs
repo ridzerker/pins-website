@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fetchPublicMap, parsePublicMap, publicMapConfig, usernameFromPath } from "../src/lib/public-map.ts";
+import { CLUSTER_ABOVE_PINS, overviewBounds, pinAppearance, uniquePoints } from "../src/lib/pins-marker.ts";
 
 const config = { supabaseUrl: "https://project.supabase.co", anonKey: "anon-test-key" };
 const pin = (overrides = {}) => ({ id: "p1", title: "Taco Spot", note: "Al pastor", place_name: "Taco Spot", link_url: "https://example.com/taco",
@@ -99,4 +100,18 @@ test("the committed MapLibre worker is the pinned package's worker, at the URL t
   const installed = await fs.readFile(require.resolve("maplibre-gl/dist/maplibre-gl-worker.mjs"));
   assert.ok(committed.equals(installed), "Committed worker matches node_modules byte for byte");
   await fs.access("public/vendor/maplibre-gl-LICENSE.txt");
+});
+
+test("pins take the app's colors and symbols, whatever the category row holds", () => {
+  assert.deepEqual(pinAppearance({ name: "Food", icon: "🍔", color: "#FF8E3C" }), { color: "#FF8E3C", symbol: "🍔" });
+  assert.deepEqual(pinAppearance({ name: "Food", icon: "F", color: "#d9613c" }), { color: "#FF8E3C", symbol: "🍔" }, "An old seed row becomes the current default");
+  assert.deepEqual(pinAppearance({ name: "Coffee", icon: "☕", color: "#8B5E3C" }), { color: "#C77D52", symbol: "☕" }, "An unapproved color goes to the nearest approved one");
+  assert.deepEqual(pinAppearance({ name: "Books", icon: null, color: null }), { color: "#6C63FF", symbol: "B" });
+  assert.deepEqual(pinAppearance({ name: "constructor", icon: null, color: null }), { color: "#6C63FF", symbol: "C" }, "Category names are data, never object keys");
+});
+
+test("the overview camera handles the date line and duplicate points", () => {
+  assert.deepEqual(overviewBounds([{ latitude: 10, longitude: 179 }, { latitude: 12, longitude: -179 }]), [179, 10, 181, 12]);
+  assert.equal(uniquePoints([{ latitude: 1, longitude: 2 }, { latitude: 1, longitude: 2 }]).length, 1);
+  assert.equal(CLUSTER_ABOVE_PINS, 300);
 });

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker, StyleSpecification } from "maplibre-gl";
 import type { PublicMapPin } from "@/lib/public-map";
 import { softenBasicMapStyle } from "@/lib/pins-map-style";
+import { CLUSTER_ABOVE_PINS, MAP_OVERVIEW_PADDING, NEUTRAL_MAP_CENTER, overviewBounds, pinAppearance, uniquePoints } from "@/lib/pins-marker";
 import styles from "./public-map.module.css";
 
 // Copied from node_modules by scripts/copy-maplibre-worker.mjs (prebuild/predev); versioned for caching.
@@ -24,7 +25,31 @@ async function loadStyle(): Promise<{ style: StyleSpecification | string; basema
   }
 }
 
-type FeatureProps = { id?: string; icon?: string; color?: string; title?: string; cluster?: boolean; cluster_id?: number; point_count?: number };
+type FeatureProps = { id?: string; symbol?: string; color?: string; title?: string; cluster?: boolean; cluster_id?: number; point_count?: number };
+const CLUSTER_COLOR = "#47745B"; // The app's marker base color (uiColors.accent).
+const GLYPH_WIDTH = 24, GLYPH_SIZE = 16, GLYPH_MIN_SIZE = 8;
+
+/** The DOM of components/PinsMarker.tsx in the app. MapLibre owns the outer element's transform, so only the inner body rotates. */
+function createMarkerElement(color: string, symbol: string, label: string) {
+  const element = document.createElement("button");
+  element.type = "button";
+  element.className = styles.marker;
+  element.setAttribute("aria-label", label);
+  element.style.setProperty("--pin-color", color);
+  const part = (className: string) => { const span = document.createElement("span"); span.className = className; span.setAttribute("aria-hidden", "true"); return span; };
+  const body = part(styles.pinBody), center = part(styles.pinCenter), glyph = part(styles.pinGlyph);
+  glyph.textContent = symbol;
+  center.append(glyph);
+  body.append(center);
+  element.append(part(styles.pinHalo), body);
+  return { element, glyph };
+}
+
+/** adjustsFontSizeToFit: symbols wider than the white center shrink, down to half size. */
+function fitGlyph(glyph: HTMLElement) {
+  if (Array.from(glyph.textContent ?? "").length < 2 || glyph.scrollWidth <= GLYPH_WIDTH) return;
+  glyph.style.fontSize = `${Math.max(GLYPH_MIN_SIZE, GLYPH_SIZE * GLYPH_WIDTH / glyph.scrollWidth)}px`;
+}
 
 export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]; selectedId: string | null; onSelect: (id: string | null) => void }) {
   const container = useRef<HTMLDivElement>(null);
@@ -44,10 +69,13 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
         if (cancelled || !container.current) return;
         maplibre.setWorkerUrl(new URL(MAPLIBRE_WORKER_URL, window.location.origin).href);
         setBasemap(basemap);
-        map = new maplibre.Map({ container: container.current, style, center: [-98, 39], zoom: 2.4, attributionControl: { compact: true },
-          cooperativeGestures: false, dragRotate: false, pitchWithRotate: false, touchPitch: false, maxZoom: 18 });
-        map.touchZoomRotate.disableRotation();
-        map.addControl(new maplibre.NavigationControl({ showCompass: false }), "top-right");
+        map = new maplibre.Map({ container: container.current, style, center: [NEUTRAL_MAP_CENTER.longitude, NEUTRAL_MAP_CENTER.latitude], zoom: 1, attributionControl: { compact: true },
+          cooperativeGestures: false, pitchWithRotate: false, touchPitch: false, maxZoom: 20 });
+        map.addControl(new maplibre.NavigationControl({ showCompass: true, visualizePitch: false }), "top-right");
+        // Like the app's compass, it appears only once the map is rotated. Tapping it returns to north.
+        const showCompass = (rotated: boolean) => { container.current?.setAttribute("data-rotated", String(rotated)); };
+        showCompass(false);
+        map.on("rotate", () => showCompass(Math.abs(map!.getBearing()) > 0.5));
         mapRef.current = map;
         const current = map;
 
@@ -60,33 +88,25 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
             seen.add(key);
             let entry = markers.current.get(key);
             if (!entry) {
-              const element = document.createElement("button");
-              element.type = "button";
+              const coordinates = feature.geometry.coordinates as [number, number];
+              const count = props.point_count ?? 0;
+              const { element, glyph } = props.cluster
+                ? createMarkerElement(CLUSTER_COLOR, count >= 1000 ? `${Math.floor(count / 1000)}k` : String(count), `${count} pins here. Zoom in`)
+                : createMarkerElement(props.color!, props.symbol!, props.title ?? "Pin");
               if (props.cluster) {
-                const count = props.point_count ?? 0;
-                element.className = styles.cluster;
-                element.textContent = count >= 1000 ? `${Math.floor(count / 1000)}k` : String(count);
-                element.setAttribute("aria-label", `${count} pins here. Zoom in`);
+                element.classList.add(styles.markerCount);
                 const clusterId = props.cluster_id!;
                 const [lng, lat] = feature.geometry.coordinates;
                 element.addEventListener("click", async () => {
                   const zoom = await (current.getSource("pins") as GeoJSONSource).getClusterExpansionZoom(clusterId);
-                  current.easeTo({ center: [lng, lat], zoom: Math.min(zoom, 17) });
+                  current.easeTo({ center: [lng, lat], zoom: Math.min(zoom, 17), duration: 250 });
                 });
               } else {
-                element.className = styles.marker;
-                element.style.setProperty("--pin-color", props.color || "#3F7D5A");
-                const glyph = document.createElement("span");
-                glyph.setAttribute("aria-hidden", "true");
-                glyph.textContent = props.icon || "";
-                element.append(glyph);
-                if (!props.icon) element.classList.add(styles.markerDot);
-                element.setAttribute("aria-label", props.title ?? "Pin");
                 const id = props.id!;
                 element.addEventListener("click", event => { event.stopPropagation(); latest.current.onSelect(id); });
               }
-              const coordinates = feature.geometry.coordinates as [number, number];
-              const marker = new maplibre.Marker({ element, anchor: props.cluster ? "center" : "bottom" }).setLngLat(coordinates).addTo(current);
+              const marker = new maplibre.Marker({ element, anchor: "bottom" }).setLngLat(coordinates).addTo(current);
+              fitGlyph(glyph);
               entry = { marker, element };
               markers.current.set(key, entry);
             }
@@ -101,7 +121,7 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
 
         current.on("load", () => {
           if (cancelled) return;
-          current.addSource("pins", { type: "geojson", data: geojson(latest.current.pins), cluster: true, clusterRadius: 52, clusterMaxZoom: 15 });
+          current.addSource("pins", { type: "geojson", data: geojson(latest.current.pins), cluster: latest.current.pins.length > CLUSTER_ABOVE_PINS, clusterRadius: 52, clusterMaxZoom: 15 });
           // An invisible layer keeps the source's tiles loaded so querySourceFeatures sees every point.
           current.addLayer({ id: "pins-hit", type: "circle", source: "pins", paint: { "circle-radius": 1, "circle-opacity": 0 } });
           frame(current, latest.current.pins, false);
@@ -142,11 +162,8 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
     if (!map) return;
     map.triggerRepaint();
     const pin = pins.find(item => item.id === selectedId);
-    if (!pin) return;
-    const point = map.project([pin.longitude, pin.latitude]);
-    const { clientWidth, clientHeight } = map.getContainer();
-    const inside = point.x > 40 && point.y > 40 && point.x < clientWidth - 40 && point.y < clientHeight - 40;
-    if (!inside || map.getZoom() < 11) map.easeTo({ center: [pin.longitude, pin.latitude], zoom: Math.max(map.getZoom(), 13) });
+    // The app's focusCoordinate: center on the pin at zoom 14 in 250 ms.
+    if (pin) map.easeTo({ center: [pin.longitude, pin.latitude], zoom: 14, duration: 250 });
   }, [selectedId, pins]);
 
   return <div className={styles.mapFrame}>
@@ -160,14 +177,15 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
 function geojson(pins: PublicMapPin[]): GeoJSON.FeatureCollection<GeoJSON.Point, FeatureProps> {
   return { type: "FeatureCollection", features: pins.map(pin => ({
     type: "Feature", geometry: { type: "Point", coordinates: [pin.longitude, pin.latitude] },
-    properties: { id: pin.id, icon: pin.category.icon ?? "", color: pin.category.color ?? "", title: pin.title },
+    properties: { id: pin.id, ...pinAppearance(pin.category), title: pin.title },
   })) };
 }
 
+/** The app's fitCoordinates. */
 function frame(map: MapLibreMap, pins: PublicMapPin[], animate: boolean) {
-  if (!pins.length) return;
-  if (pins.length === 1) { map.jumpTo({ center: [pins[0].longitude, pins[0].latitude], zoom: 13 }); return; }
-  let [west, south, east, north] = [180, 90, -180, -90];
-  for (const pin of pins) { west = Math.min(west, pin.longitude); east = Math.max(east, pin.longitude); south = Math.min(south, pin.latitude); north = Math.max(north, pin.latitude); }
-  map.fitBounds([[west, south], [east, north]], { padding: { top: 64, bottom: 48, left: 48, right: 48 }, maxZoom: 14, animate, duration: animate ? 600 : 0 });
+  const points = uniquePoints(pins);
+  if (!points.length) return;
+  if (points.length === 1) { map.jumpTo({ center: [points[0].longitude, points[0].latitude], zoom: 11 }); return; }
+  const [west, south, east, north] = overviewBounds(points);
+  map.fitBounds([[west, south], [east, north]], { padding: MAP_OVERVIEW_PADDING, animate, duration: animate ? 250 : 0 });
 }

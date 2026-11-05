@@ -15,7 +15,9 @@ Opt-in public maps that anyone can open without an account, for example `joinpin
 - The database decides what is public: only users who turned on their web map, only their public
   pins, and a fixed set of fields. `src/lib/public-map.ts` validates the response again, and unknown,
   private and disabled usernames show the same "This map isn't available." page.
-- The map uses MapLibre GL (`maplibre-gl`, pinned) with clustered, keyboard-accessible markers.
+- The map uses MapLibre GL (`maplibre-gl`, pinned) with keyboard-accessible markers that reproduce
+  the app's pins and camera (`src/lib/pins-marker.ts`, [visual parity](public-map-visual-parity.md)).
+  Like the app it does not cluster, except on maps above 300 pins.
   The base map is MapTiler Basic softened with the app's palette (`src/lib/pins-map-style.ts`,
   vendored from the app). Without a MapTiler key it falls back to a plain background. MapLibre v6
   loads its worker from a runtime URL that bundlers cannot see, so the pinned worker and its BSD-3
@@ -44,6 +46,7 @@ or secret key, or any non-`NEXT_PUBLIC_` secret. Set them for Preview first, the
 npm test                 # includes scripts/test-public-map.mjs (parsing, validation, anonymous fetch)
 NEXT_PUBLIC_SUPABASE_URL=https://fixture.supabase.invalid NEXT_PUBLIC_SUPABASE_ANON_KEY=e2e-anon-key npm run build
 npm run test:public-map  # headless browser, fixture data, emulated rewrite, no external requests
+npm run test:marker-parity  # the app's real marker and helpers against the website's copies
 npm run test:website     # existing site suite
 ```
 

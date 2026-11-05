@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test scripts/test-confirmation.mjs scripts/test-public-map.mjs",
     "test:website": "node scripts/test-website.mjs",
-    "test:public-map": "node scripts/test-public-map-e2e.mjs"
+    "test:public-map": "node scripts/test-public-map-e2e.mjs",
+    "test:marker-parity": "node --no-warnings --experimental-strip-types scripts/test-marker-parity.mjs"
   },
   "dependencies": {
     "maplibre-gl": "6.14.0",
