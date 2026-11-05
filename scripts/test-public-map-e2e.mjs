@@ -155,6 +155,9 @@ try {
 
   const markerCount = expected => page.waitForFunction(count => document.querySelectorAll(".maplibregl-marker").length === count, expected, { timeout: 15000 });
   // A keyboard user reaches a marker and opens it; a filter that hides the selected pin closes its details.
+  // Details zoomed the camera onto other pins, so start again from the overview.
+  await page.reload();
+  await page.locator('.maplibregl-marker[aria-label="Taco Spot"]').waitFor({ timeout: 20000 });
   await page.locator('.maplibregl-marker[aria-label="Taco Spot"]').focus();
   await page.keyboard.press("Enter");
   await page.getByRole("heading", { name: "Taco Spot", level: 2 }).waitFor();
