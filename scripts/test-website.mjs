@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { headersFor } from "./lib/vercel-headers.mjs";
 import { chromium } from "playwright-core";
 
 // Test the built static export with an isolated headless browser, never a user profile.
@@ -15,6 +16,7 @@ const server = createServer(async (req, res) => {
   let filename;
   try {
     const url = new URL(req.url, "http://localhost");
+    for (const [key, value] of Object.entries(headersFor(url.pathname))) res.setHeader(key, value);
     filename = path.resolve(root, "." + decodeURIComponent(url.pathname));
     if (filename !== root && !filename.startsWith(root + path.sep)) throw new Error("Invalid path");
     if ((await fs.stat(filename)).isDirectory()) {
@@ -38,7 +40,7 @@ const context = await browser.newContext({ reducedMotion: "reduce" });
 const page = await context.newPage();
 const errors = [];
 page.on("pageerror", error => errors.push(error.message));
-page.on("console", message => { if (/TEST_ONLY/.test(message.text())) errors.push("Token printed to console"); });
+page.on("console", message => { if (/TEST_ONLY/.test(message.text())) errors.push("Token printed to console"); if (/Content Security Policy/i.test(message.text())) errors.push(`CSP violation: ${message.text().slice(0, 200)}`); });
 const externalRequests = new Set();
 page.on("request", request => { if (!request.url().startsWith(origin) && !request.url().startsWith("data:")) externalRequests.add(request.url()); });
 const report = { routes: [], links: [], confirmations: [], externalRequests: [], errors: [], screenshots: [] };
