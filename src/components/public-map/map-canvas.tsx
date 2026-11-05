@@ -27,6 +27,7 @@ async function loadStyle(): Promise<{ style: StyleSpecification | string; basema
 
 type FeatureProps = { id?: string; symbol?: string; color?: string; title?: string; cluster?: boolean; cluster_id?: number; point_count?: number };
 const CLUSTER_COLOR = "#47745B"; // The app's marker base color (uiColors.accent).
+const CLUSTER_MAX_ZOOM = 15;
 const GLYPH_WIDTH = 24, GLYPH_SIZE = 16, GLYPH_MIN_SIZE = 8;
 
 /** The DOM of components/PinsMarker.tsx in the app. MapLibre owns the outer element's transform, so only the inner body rotates. */
@@ -45,6 +46,11 @@ function createMarkerElement(color: string, symbol: string, label: string) {
   return { element, glyph };
 }
 
+function markSelected(element: HTMLElement, selected: boolean) {
+  element.classList.toggle(styles.markerSelected, selected);
+  element.setAttribute("aria-pressed", String(selected));
+}
+
 /** adjustsFontSizeToFit: symbols wider than the white center shrink, down to half size. */
 function fitGlyph(glyph: HTMLElement) {
   if (Array.from(glyph.textContent ?? "").length < 2 || glyph.scrollWidth <= GLYPH_WIDTH) return;
@@ -55,6 +61,7 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef(new Map<string, { marker: Marker; element: HTMLButtonElement }>());
+  const rendered = useRef<PublicMapPin[] | null>(null);
   const latest = useRef({ pins, selectedId, onSelect });
   useEffect(() => { latest.current = { pins, selectedId, onSelect }; });
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
@@ -107,25 +114,30 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
               }
               const marker = new maplibre.Marker({ element, anchor: "bottom" }).setLngLat(coordinates).addTo(current);
               fitGlyph(glyph);
+              if (!props.cluster) markSelected(element, props.id === latest.current.selectedId);
               entry = { marker, element };
               markers.current.set(key, entry);
-            }
-            if (!props.cluster) {
-              const selected = props.id === latest.current.selectedId;
-              entry.element.classList.toggle(styles.markerSelected, selected);
-              entry.element.setAttribute("aria-pressed", String(selected));
             }
           }
           for (const [key, entry] of markers.current) if (!seen.has(key)) { entry.marker.remove(); markers.current.delete(key); }
         };
+        // Tiles and clusters only change when the source loads data or the camera stops, so this never runs per frame.
+        let syncFrame = 0;
+        const scheduleSync = () => {
+          if (syncFrame) return;
+          syncFrame = requestAnimationFrame(() => { syncFrame = 0; if (!cancelled && current.getSource("pins") && current.isSourceLoaded("pins")) sync(); });
+        };
 
         current.on("load", () => {
           if (cancelled) return;
-          current.addSource("pins", { type: "geojson", data: geojson(latest.current.pins), cluster: latest.current.pins.length > CLUSTER_ABOVE_PINS, clusterRadius: 52, clusterMaxZoom: 15 });
+          current.addSource("pins", { type: "geojson", data: geojson(latest.current.pins), cluster: latest.current.pins.length > CLUSTER_ABOVE_PINS, clusterRadius: 52, clusterMaxZoom: CLUSTER_MAX_ZOOM });
           // An invisible layer keeps the source's tiles loaded so querySourceFeatures sees every point.
           current.addLayer({ id: "pins-hit", type: "circle", source: "pins", paint: { "circle-radius": 1, "circle-opacity": 0 } });
+          rendered.current = latest.current.pins;
           frame(current, latest.current.pins, false);
-          current.on("render", () => { if (current.isSourceLoaded("pins")) sync(); });
+          current.on("sourcedata", event => { if (event.sourceId === "pins") scheduleSync(); });
+          current.on("moveend", scheduleSync);
+          current.on("idle", scheduleSync);
           current.on("click", () => latest.current.onSelect(null));
           setState("ready");
         });
@@ -149,27 +161,28 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
   useEffect(() => {
     const map = mapRef.current;
     const source = map?.getSource("pins") as GeoJSONSource | undefined;
-    if (!map || !source) return;
+    if (!map || !source || rendered.current === pins) return;
+    rendered.current = pins;
     for (const entry of markers.current.values()) entry.marker.remove();
     markers.current.clear();
     source.setData(geojson(pins));
     frame(map, pins, true);
-  }, [pins, state]);
+  }, [pins]);
 
   // Keep the selected pin in view and its marker highlighted.
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    map.triggerRepaint();
+    for (const [key, entry] of markers.current) if (key.startsWith("p")) markSelected(entry.element, key === `p${selectedId}`);
     const pin = pins.find(item => item.id === selectedId);
-    // The app's focusCoordinate: center on the pin at zoom 14 in 250 ms.
-    if (pin) map.easeTo({ center: [pin.longitude, pin.latitude], zoom: 14, duration: 250 });
+    // The app's focusCoordinate: center on the pin at zoom 14 in 250 ms. A clustered map goes past
+    // the last cluster zoom, or the selected pin would stay hidden inside a cluster.
+    const zoom = pins.length > CLUSTER_ABOVE_PINS ? Math.max(14, CLUSTER_MAX_ZOOM + 1) : 14;
+    if (pin) mapRef.current?.easeTo({ center: [pin.longitude, pin.latitude], zoom, duration: 250 });
   }, [selectedId, pins]);
 
   return <div className={styles.mapFrame}>
     <div ref={container} className={styles.map} role="region" aria-label="Map of public pins" />
     {state === "loading" && <p className={styles.mapStatus} role="status">Loading map…</p>}
-    {state === "failed" && <p className={styles.mapStatus} role="status">The map couldn’t load. The pins are listed below.</p>}
+    {state === "failed" && <p className={styles.mapStatus} role="status">The map couldn’t load. You can still browse the pins in the list.</p>}
     {state === "ready" && !basemap && <p className={styles.mapNote}>Map background unavailable</p>}
   </div>;
 }

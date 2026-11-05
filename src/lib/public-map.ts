@@ -59,6 +59,8 @@ const httpUrl = (value: unknown): string | null => {
   if (!raw) return null;
   try {
     const url = new URL(raw);
+    // A user:password@ prefix can make a link look like a different site.
+    if (url.username || url.password) return null;
     return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
   } catch {
     return null;
@@ -118,8 +120,16 @@ export function publicMapConfig(env: { url?: string; anonKey?: string }): Public
   return { supabaseUrl: url, anonKey };
 }
 
-export async function fetchPublicMap(username: string, config: PublicMapConfig | null, fetcher: typeof fetch = fetch, signal?: AbortSignal): Promise<PublicMapResult> {
+const REQUEST_TIMEOUT_MS = 15000;
+
+export async function fetchPublicMap(username: string, config: PublicMapConfig | null, fetcher: typeof fetch = fetch, signal?: AbortSignal, timeoutMs = REQUEST_TIMEOUT_MS): Promise<PublicMapResult> {
   if (!config) return { status: "not-configured" };
+  // A stalled connection must end in the retry message, not an endless "Loading map…".
+  const request = new AbortController();
+  const cancel = () => request.abort();
+  if (signal?.aborted) cancel();
+  signal?.addEventListener("abort", cancel);
+  const timer = setTimeout(cancel, timeoutMs);
   try {
     const response = await fetcher(`${config.supabaseUrl}/rest/v1/rpc/get_public_web_map`, {
       method: "POST",
@@ -129,7 +139,7 @@ export async function fetchPublicMap(username: string, config: PublicMapConfig |
       cache: "no-store",
       credentials: "omit",
       referrerPolicy: "no-referrer",
-      signal,
+      signal: request.signal,
     });
     if (!response.ok) return { status: "error" };
     const body: unknown = await response.json();
@@ -139,6 +149,9 @@ export async function fetchPublicMap(username: string, config: PublicMapConfig |
   } catch (error) {
     if (signal?.aborted) throw error;
     return { status: "error" };
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", cancel);
   }
 }
 

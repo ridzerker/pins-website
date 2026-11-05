@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { chromium } from "playwright-core";
+import { headersFor } from "./lib/vercel-headers.mjs";
 
 // Browser tests for joinpins.app/@username against the built static export, in an isolated headless
 // browser. Build first with fixture values (never production):
@@ -28,10 +29,13 @@ const served = [];
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   served.push(url.pathname);
+  // The fixture Supabase host stands in for the real one under the real policy.
+  for (const [key, value] of Object.entries(headersFor(url.pathname))) res.setHeader(key, value.replace("https://*.supabase.co", `https://*.supabase.co ${FIXTURE_ORIGIN}`));
   try {
     // vercel.json rewrites: the URL stays /@username while the static shell is served.
     if (/^\/@[^/]+\/?$/.test(url.pathname)) { res.setHeader("Content-Type", "text/html"); res.end(shell); return; }
-    let filename = path.resolve(root, "." + decodeURIComponent(url.pathname));
+    // Vercel serves Next's prefetch files at dotted paths; the export writes them as folders.
+    let filename = path.resolve(root, "." + decodeURIComponent(url.pathname).replace(/__next\.([^/]+)\.(__PAGE__\.txt)$/, "__next.$1/$2"));
     if (filename !== root && !filename.startsWith(root + path.sep)) throw new Error("Invalid path");
     if ((await fs.stat(filename)).isDirectory()) filename = path.join(filename, "index.html");
     res.setHeader("Content-Type", mime[path.extname(filename)] || "application/octet-stream");
@@ -54,6 +58,10 @@ const fixtures = {
     pin("p3", "Hidden Bakery", 34.1, -118.2, food, { saved_from: { username: null, display_name: null } }),
     pin("p4", "<img src=x onerror=alert(1)>", 34.0, -118.4, plain),
   ] },
+  long: { profile: { username: "long", display_name: "🌮 " + "Averyveryverylongdisplayname".repeat(4), bio: "Unbroken".repeat(40), public_pin_count: 1 }, truncated: false, pins: [
+    pin("l1", "Title".repeat(40), 34.05, -118.25, { name: "Category".repeat(5), icon: "🌮🌯🥙", color: "#123456" }, { note: "Note ".repeat(300), place_name: "Place".repeat(40), link_url: "https://user:secret@example.com/" }),
+  ] },
+  "a.b_c": { profile: { username: "a.b_c", display_name: null, bio: null, public_pin_count: 1 }, truncated: false, pins: [pin("u1", "Dotted", 34.05, -118.25, food)] },
   newbie: { profile: { username: "newbie", display_name: null, bio: null, public_pin_count: 0 }, truncated: false, pins: [] },
   big: { profile: { username: "big", display_name: "Big Map", bio: null, public_pin_count: 2600 }, truncated: true,
     pins: Array.from({ length: 2000 }, (_, n) => pin(`b${n}`, `Place ${n}`, 20 + (n % 50) * 0.6, -120 + Math.floor(n / 50) * 0.9, n % 2 ? food : coffee)) },
@@ -86,6 +94,8 @@ await context.route("**/*", async route => {
 });
 const page = await context.newPage();
 page.on("pageerror", error => errors.push(error.message));
+const consoleErrors = [];
+page.on("console", message => { if (message.type() === "error" && !/status of 500/.test(message.text())) consoleErrors.push(`${message.text()} (${message.location().url})`); });
 page.on("dialog", dialog => { dialogs.push(dialog.message()); void dialog.dismiss(); });
 const axeSource = await fs.readFile(require.resolve("axe-core/axe.min.js"), "utf8");
 let passed = 0;
@@ -98,7 +108,8 @@ const axe = async label => {
 };
 
 try {
-  await page.goto(origin + "/@alan");
+  const firstResponse = await page.goto(origin + "/@alan");
+  assert.match(firstResponse.headers()["content-security-policy"], /default-src .self./, "The test server applies vercel.json, so the browser enforces the real policy");
   await page.getByRole("heading", { name: "Alan Tran", level: 1 }).waitFor();
   assert.equal(page.url(), origin + "/@alan", "The share URL stays in the address bar");
   assert.equal(await page.title(), "Alan Tran (@alan) | Pins");
@@ -124,7 +135,12 @@ try {
   assert.equal(await page.getByRole("link", { name: /Open in Maps/ }).getAttribute("href"), "https://www.google.com/maps/search/?api=1&query=34.050000,-118.250000");
   assert.equal(await page.locator('.maplibregl-marker[aria-label="Taco Spot"]').getAttribute("aria-pressed"), "true");
   assert.equal(await page.locator('.maplibregl-marker[aria-label="Taco Spot"]').evaluate(element => getComputedStyle(element.children[0]).display), "block", "A selected pin shows the app's halo");
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "pin-title", "Opening details moves focus to them");
   await page.getByRole("button", { name: "← All pins" }).click();
+  assert.ok((await page.evaluate(() => document.activeElement?.textContent ?? "")).includes("Taco Spot"), "Closing details returns focus to that pin in the list");
+  await page.locator("aside").getByRole("button", { name: /Taco Spot/ }).press("Enter");
+  await page.getByRole("heading", { name: "Taco Spot", level: 2 }).press("Escape");
+  await page.locator("aside").getByRole("button", { name: /Taco Spot/ }).waitFor();
   await page.locator("aside").getByRole("button", { name: /Morning Coffee/ }).click();
   assert.equal(await page.getByRole("link", { name: "Quinn" }).getAttribute("href"), "/@quinn");
   await page.getByRole("button", { name: "← All pins" }).click();
@@ -134,6 +150,8 @@ try {
   await page.locator("aside").getByRole("button", { name: "<img src=x onerror=alert(1)>" }).waitFor();
   assert.equal(await page.locator("img[src='x']").count(), 0, "Pin text is rendered as text");
   pass("markers and the list open pin details with safe links, attribution only for publishing creators, and escaped text");
+  assert.deepEqual(consoleErrors, [], "No console errors or Content-Security-Policy violations on a working map");
+  pass("a working map runs under the real security headers with no console errors");
 
   await page.getByRole("button", { name: /Coffee 1/ }).click();
   assert.equal(await page.locator("aside").getByRole("button", { name: /Taco Spot/ }).count(), 0);
@@ -207,6 +225,32 @@ try {
   await axe("empty map");
   pass("server errors offer a retry, and an empty published map explains itself");
 
+  for (const width of [320, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(origin + "/@long");
+    await page.getByRole("heading", { level: 1 }).waitFor();
+    assert.ok((await heading()).startsWith("🌮"));
+    assert.equal(await page.locator('[class*="avatar"]').first().textContent(), "🌮A", "Initials keep a whole emoji");
+    const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    assert.equal(await overflow(), 0, `No sideways scroll with long text at ${width}`);
+    await page.locator("aside").getByRole("button").first().click();
+    await page.getByRole("heading", { level: 2, name: /^Title/ }).waitFor();
+    assert.equal(await overflow(), 0, `No sideways scroll in long details at ${width}`);
+    assert.equal(await page.getByRole("link", { name: /Visit link/ }).count(), 0, "A link hiding behind user:password@ is dropped");
+    await axe(`long content at ${width}`);
+  }
+  await page.goto(origin + "/@a.b_c");
+  await page.getByRole("heading", { name: "@a.b_c", level: 1 }).waitFor();
+  pass("long names, bios, titles, notes and unusual usernames stay inside the layout, and credential-style links are dropped");
+
+  await page.setViewportSize({ width: 390, height: 700 });
+  await page.goto(origin + "/@alan");
+  await page.locator('.maplibregl-marker[aria-label="Taco Spot"]').waitFor({ timeout: 20000 });
+  await page.locator('.maplibregl-marker[aria-label="Taco Spot"]').click();
+  await page.getByRole("heading", { name: "Taco Spot", level: 2 }).waitFor();
+  assert.ok(await page.evaluate(() => { const box = document.getElementById("pin-title").getBoundingClientRect(); return box.top >= 0 && box.bottom <= innerHeight; }), "On a phone, tapping a marker brings its details into view");
+  pass("on a phone, tapping a marker scrolls its details into view");
+
   await page.setViewportSize({ width: 1280, height: 900 });
   const started = Date.now();
   await page.goto(origin + "/@big");
@@ -220,6 +264,9 @@ try {
   assert.equal(await page.locator("ul li").count(), 120);
   await page.getByText("Showing the newest 2,000 of 2,600 public pins.").waitFor();
   await page.screenshot({ path: path.join(artifacts, "big-1280.png") });
+  await page.locator("aside").getByRole("button", { name: "Place 7", exact: true }).click();
+  await page.locator('.maplibregl-marker[aria-label="Place 7"][aria-pressed="true"]').waitFor({ timeout: 20000 });
+  await page.getByRole("button", { name: "← All pins" }).click();
   pass(`a 2,000-pin map clusters (${domMarkers} DOM markers), lists progressively and states truncation (${elapsed} ms to first marker, headless SwiftShader)`);
 
   const noJs = await browser.newContext({ javaScriptEnabled: false });

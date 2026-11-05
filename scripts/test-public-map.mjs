@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fetchPublicMap, parsePublicMap, publicMapConfig, usernameFromPath } from "../src/lib/public-map.ts";
+import { headersFor } from "./lib/vercel-headers.mjs";
 import { CLUSTER_ABOVE_PINS, overviewBounds, pinAppearance, uniquePoints } from "../src/lib/pins-marker.ts";
 
 const config = { supabaseUrl: "https://project.supabase.co", anonKey: "anon-test-key" };
@@ -114,4 +115,37 @@ test("the overview camera handles the date line and duplicate points", () => {
   assert.deepEqual(overviewBounds([{ latitude: 10, longitude: 179 }, { latitude: 12, longitude: -179 }]), [179, 10, 181, 12]);
   assert.equal(uniquePoints([{ latitude: 1, longitude: 2 }, { latitude: 1, longitude: 2 }]).length, 1);
   assert.equal(CLUSTER_ABOVE_PINS, 300);
+});
+
+test("a stalled request ends in an error the page can retry, and a caller's abort still aborts", async () => {
+  const hang = (_url, { signal }) => new Promise((_, reject) => signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError"))));
+  assert.deepEqual(await fetchPublicMap("alan", config, hang, undefined, 5), { status: "error" });
+  const caller = new AbortController();
+  const pending = fetchPublicMap("alan", config, hang, caller.signal, 5000);
+  caller.abort();
+  await assert.rejects(pending, { name: "AbortError" });
+});
+
+test("links hiding behind user:password@ are dropped", () => {
+  const map = parsePublicMap(body({ pins: [pin({ link_url: "https://bank.example:secret@evil.example/" })] }), "alan");
+  assert.equal(map.pins[0].linkUrl, null);
+});
+
+test("security headers cover every page, and maps stay private to crawlers and referrers", () => {
+  for (const path of ["/", "/privacy/", "/@alan", "/@alan/", "/map/"]) {
+    const headers = headersFor(path);
+    assert.equal(headers["X-Content-Type-Options"], "nosniff", path);
+    assert.equal(headers["X-Frame-Options"], "DENY", path);
+    assert.match(headers["Content-Security-Policy"], /frame-ancestors 'none'/, path);
+    assert.match(headers["Content-Security-Policy"], /object-src 'none'/, path);
+    assert.doesNotMatch(headers["Content-Security-Policy"], /unsafe-eval/, path);
+    assert.match(headers["Strict-Transport-Security"], /max-age=\d{8}/, path);
+    assert.match(headers["Permissions-Policy"], /geolocation=\(\)/, path);
+  }
+  for (const path of ["/@alan", "/@alan/", "/map/"]) {
+    assert.equal(headersFor(path)["X-Robots-Tag"], "noindex, nofollow", path);
+    assert.equal(headersFor(path)["Referrer-Policy"], "no-referrer", path);
+  }
+  assert.equal(headersFor("/")["X-Robots-Tag"], undefined, "The marketing site stays indexable");
+  assert.equal(headersFor("/")["Referrer-Policy"], "strict-origin-when-cross-origin");
 });

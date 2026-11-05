@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink } from "@/components/site";
 import { Icon } from "@/components/icons";
 import { displayNameFor, fetchPublicMap, publicMapConfig, publicMapPath, usernameFromPath, type PublicMap, type PublicMapPin, type PublicMapResult } from "@/lib/public-map";
@@ -59,7 +59,19 @@ function MapPage({ map }: { map: PublicMap }) {
   }, [map.pins]);
   const pins = useMemo(() => category ? map.pins.filter(pin => pin.category.name === category) : map.pins, [map.pins, category]);
   const selected = pins.find(pin => pin.id === selectedId) ?? null;
+  const panel = useRef<HTMLElement>(null);
+  const returnFocusTo = useRef<string | null>(null);
   const chooseCategory = (next: string | null) => { setCategory(next); setSelectedId(null); setListed(LIST_STEP); };
+  const closeDetails = () => { returnFocusTo.current = selectedId; setSelectedId(null); };
+  // The list item that opened the details is gone from the page, so focus has to be placed by hand.
+  useEffect(() => {
+    if (panel.current) panel.current.scrollTop = 0;
+    const pinId = returnFocusTo.current;
+    if (selectedId || !pinId) return;
+    returnFocusTo.current = null;
+    const items = panel.current?.querySelectorAll<HTMLElement>("[data-pin-id]") ?? [];
+    (Array.from(items).find(item => item.dataset.pinId === pinId) ?? panel.current?.querySelector<HTMLElement>("h2"))?.focus();
+  }, [selectedId]);
 
   return <main id="main-content" tabIndex={-1} className={styles.page}>
     <section className={`shell ${styles.profile}`} aria-labelledby="profile-name">
@@ -72,6 +84,7 @@ function MapPage({ map }: { map: PublicMap }) {
       </div>
       <div className={styles.profileActions}>
         <ExternalLink className={`button primary ${styles.cta}`} href={testFlightUrl}>Get Pins <Icon name="arrow" size={16} /></ExternalLink>
+        <p className={styles.ctaHint}>Free iPhone beta, through TestFlight.</p>
         <p className={styles.ctaHint}>Already on Pins? Find @{map.username} in Explore.</p>
       </div>
     </section>
@@ -88,12 +101,13 @@ function MapPage({ map }: { map: PublicMap }) {
       </nav>}
       <section className={`shell ${styles.workspace}`} aria-label={`${name}’s map`}>
         <MapCanvas pins={pins} selectedId={selectedId} onSelect={setSelectedId} />
-        <aside className={styles.panel} aria-live="polite">
-          {selected ? <PinDetails pin={selected} onClose={() => setSelectedId(null)} /> : <>
-            <h2 className={styles.panelTitle}>{category ?? "All pins"}</h2>
+        <aside ref={panel} className={styles.panel} onKeyDown={event => { if (event.key === "Escape" && selected) closeDetails(); }}>
+          {selected ? <PinDetails pin={selected} onClose={closeDetails} /> : <>
+            <h2 className={styles.panelTitle} tabIndex={-1}>{category ?? "All pins"}</h2>
+            <p className="visually-hidden" role="status">{category ? `Showing ${pins.length.toLocaleString("en-US")} ${pins.length === 1 ? "pin" : "pins"} in ${category}` : ""}</p>
             <ul className={styles.list}>
               {pins.slice(0, listed).map(pin => <li key={pin.id}>
-                <button type="button" className={styles.listItem} onClick={() => setSelectedId(pin.id)}>
+                <button type="button" className={styles.listItem} data-pin-id={pin.id} onClick={() => setSelectedId(pin.id)}>
                   <CategoryIcon category={pin.category} />
                   <span className={styles.listText}><strong>{pin.title}</strong>{pin.placeName && <small>{pin.placeName}</small>}</span>
                 </button>
@@ -107,18 +121,24 @@ function MapPage({ map }: { map: PublicMap }) {
     </>}
 
     <section className={`shell ${styles.promo}`}>
-      <div><h2>Make a map of your own.</h2><p>Save the places that matter, share them with friends, and publish a map like this one.</p></div>
+      <div><h2>Make a map of your own.</h2><p>Pins is a social map. Save the places that matter, share them with friends, and publish a map like this one.</p></div>
       <ExternalLink className={`button primary ${styles.cta}`} href={testFlightUrl}>Join the iOS beta <Icon name="arrow" size={16} /></ExternalLink>
     </section>
   </main>;
 }
 
 function PinDetails({ pin, onClose }: { pin: PublicMapPin; onClose: () => void }) {
+  const title = useRef<HTMLHeadingElement>(null);
+  // On a phone the details sit below the map, so a marker tap would otherwise show no change.
+  useEffect(() => {
+    title.current?.focus({ preventScroll: true });
+    title.current?.closest("article")?.scrollIntoView({ block: "nearest" });
+  }, [pin.id]);
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${pin.latitude.toFixed(6)},${pin.longitude.toFixed(6)}`;
   return <article className={styles.details} aria-labelledby="pin-title">
     <button type="button" className={styles.back} onClick={onClose}>← All pins</button>
     <p className={styles.category}><CategoryIcon category={pin.category} />{pin.category.name}</p>
-    <h2 id="pin-title">{pin.title}</h2>
+    <h2 id="pin-title" ref={title} tabIndex={-1}>{pin.title}</h2>
     {pin.placeName && <p className={styles.place}><Icon name="pin" size={16} /> {pin.placeName}</p>}
     {pin.note && <p className={styles.note}>{pin.note}</p>}
     {pin.savedFrom && <p className={styles.attribution}>Saved from {pin.savedFrom.username
@@ -152,5 +172,7 @@ function useDocumentTitle(title: string | null) {
 function initials(name: string) {
   const words = name.replace(/^@/, "").trim().split(/\s+/).filter(Boolean);
   if (!words.length) return "?";
-  return (words.length > 1 ? words[0][0] + words[words.length - 1][0] : words[0].slice(0, 2)).toUpperCase();
+  // By character, not UTF-16 unit, so a name starting with an emoji stays whole.
+  const first = Array.from(words[0]);
+  return (words.length > 1 ? first[0] + Array.from(words[words.length - 1])[0] : first.slice(0, 2).join("")).toUpperCase();
 }
