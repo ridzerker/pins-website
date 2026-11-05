@@ -107,7 +107,7 @@ let passed = 0;
 const pass = label => { passed++; console.log(`PASS ${label}`); };
 const heading = () => page.getByRole("heading", { level: 1 }).textContent();
 const axe = async label => {
-  await page.addScriptTag({ content: axeSource });
+  await page.evaluate(`${axeSource};undefined`); // addScriptTag is an inline script, which the page policy now blocks
   const violations = await page.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } })).violations.map(v => `${v.id}: ${v.nodes.length}`));
   assert.deepEqual(violations, [], `Accessibility violations on ${label}`);
 };
@@ -156,7 +156,11 @@ try {
   assert.equal(await page.locator("img[src='x']").count(), 0, "Pin text is rendered as text");
   pass("markers and the list open pin details with safe links, attribution only for publishing creators, and escaped text");
   assert.deepEqual(consoleErrors, [], "No console errors or Content-Security-Policy violations on a working map");
-  pass("a working map runs under the real security headers with no console errors");
+  const injected = await page.evaluate(() => { const script = document.createElement("script"); script.textContent = "window.__injected = true"; document.head.append(script); return window.__injected === true; });
+  assert.equal(injected, false, "An inline script added after build is blocked, though the header alone would allow it");
+  consoleErrors.length = 0;
+  assert.match(await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute("content"), /script-src 'self' 'sha256-/);
+  pass("a working map runs under the real security headers with no console errors, and injected inline scripts are blocked");
 
   const markerCount = expected => page.waitForFunction(count => document.querySelectorAll(".maplibregl-marker").length === count, expected, { timeout: 15000 });
   // A keyboard user reaches a marker and opens it; a filter that hides the selected pin closes its details.
@@ -299,6 +303,24 @@ try {
   const clusterLabels = await page.locator(".maplibregl-marker").evaluateAll(items => items.map(item => item.getAttribute("aria-label")));
   assert.ok(clusterLabels.every(label => /^Spot \d+$/.test(label) ? Number(label.slice(5)) % 8 === 0 : /pins here/.test(label)), `A filtered map shows only that category: ${clusterLabels.slice(0, 5)}`);
   pass("a pin selected from a filtered, clustered map is shown as a marker, with no markers left from other categories");
+
+  // A pin link from the app opens on that pin, and a link to anything else is just the map.
+  await page.goto(origin + "/@alan?pin=p2");
+  await page.getByRole("heading", { name: "Morning Coffee", level: 2 }).waitFor();
+  await page.locator('.maplibregl-marker[aria-label="Morning Coffee"][aria-pressed="true"]').waitFor({ timeout: 20000 });
+  assert.equal(await page.evaluate(() => document.activeElement?.id), "pin-title");
+  await page.getByRole("button", { name: "← All pins" }).click();
+  await page.locator("aside").getByRole("button", { name: /Taco Spot/ }).waitFor();
+  rpcCalls.length = 0;
+  for (const search of ["?pin=not-on-this-map", "?pin=<img>"]) {
+    await page.goto(origin + "/@alan" + search);
+    await page.locator("aside").getByRole("button", { name: /Taco Spot/ }).waitFor();
+    assert.equal(await page.locator("#pin-title").count(), 0, search);
+  }
+  assert.ok(rpcCalls.every(item => JSON.stringify(item.body) === '{"target_username":"alan"}'), "The pin id is never sent to the database");
+  await page.goto(origin + "/@nobody?pin=p2");
+  await page.getByRole("heading", { name: "This map isn’t available.", level: 1 }).waitFor();
+  pass("a shared pin link opens that pin, and an unknown pin or unavailable map reveals nothing more");
 
   // Coming back to an open tab: nothing is requested until a minute has passed, then fresh data wins.
   const returnToTab = () => page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));

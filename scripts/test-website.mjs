@@ -92,7 +92,7 @@ try {
         const qr = await page.locator(".beta-qr").evaluate(el => getComputedStyle(el).display);
         assert.equal(qr, width > 960 ? "flex" : "none", `QR visibility at ${width}`);
       }
-      await page.addScriptTag({ content: axeSource });
+      await page.evaluate(`${axeSource};undefined`); // addScriptTag is an inline script, which the page policy now blocks
       const accessibility = await page.evaluate(async () => {
         const result = await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } });
         return result.violations.map(v => ({ id: v.id, impact: v.impact, nodes: v.nodes.map(n => ({ html: n.html, summary: n.failureSummary })) }));

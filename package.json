@@ -7,6 +7,7 @@
     "predev": "node scripts/copy-maplibre-worker.mjs",
     "build": "next build",
     "prebuild": "node scripts/copy-maplibre-worker.mjs",
+    "postbuild": "node scripts/harden-csp.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test scripts/test-confirmation.mjs scripts/test-public-map.mjs",

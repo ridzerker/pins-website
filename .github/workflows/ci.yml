@@ -20,6 +20,8 @@ jobs:
       PINS_TEST_BROWSER: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -31,3 +33,8 @@ jobs:
       - run: npm run build
       - run: npm run test:public-map
       - run: npm run test:website
+      # The optional base map. Its provider is answered by fixtures, so nothing leaves the runner.
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_MAP_PROVIDER: openfreemap
+      - run: npm run test:basemap

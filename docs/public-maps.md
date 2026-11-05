@@ -27,6 +27,9 @@ Opt-in public maps that anyone can open without an account, for example `joinpin
   `maplibre-gl`, run `node scripts/copy-maplibre-worker.mjs` and update `MAPLIBRE_WORKER_URL`;
   `npm test` fails if they drift.
 
+A link can open on one pin: `/@alan?pin=<id>`. The id is only compared with that map's own pins and is
+never sent to the database. An unknown id opens the map as usual.
+
 Per-profile titles are set after load. Link previews use a generic "Explore this map on Pins"
 card: per-profile previews would need server rendering, a hosting change that has not been made.
 
@@ -55,8 +58,11 @@ npm run test:website     # existing site suite
 
 `npm run verify` runs all of these with fixture values and needs no production access or credentials.
 `scripts/test-public-map-live.mjs` is separate: it uses production and only runs with the founder's approval.
-`npm run profile:public-map` measures load, panning and selection on synthetic maps of 0 to 2,000 pins.
+`npm run profile:public-map` benchmarks load, panning, zooming, filtering and selection on synthetic maps
+of 10 to 2,000 pins, and reports medians of several runs.
 
 `test:public-map` covers rendering, markers and details, filters, anonymous requests, responsive
 widths with axe, unavailable states, revocation on reload, retry, empty and 2,000-pin maps, and no-JS.
-Vercel's rewrite and header behavior can only be confirmed on a preview deployment.
+`postbuild` (`scripts/harden-csp.mjs`) adds a per-page policy with the hashes of that page's inline scripts,
+so inline scripts added later are blocked. Vercel's rewrite and header behavior, and that it runs
+`postbuild`, can only be confirmed on a preview deployment.

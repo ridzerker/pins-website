@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { fetchPublicMap, parsePublicMap, publicMapConfig, usernameFromPath } from "../src/lib/public-map.ts";
+import { fetchPublicMap, parsePublicMap, pinIdFromSearch, publicMapConfig, usernameFromPath } from "../src/lib/public-map.ts";
 import { headersFor } from "./lib/vercel-headers.mjs";
 import { chooseBasemap, softenPositronStyle } from "../src/lib/map-provider.ts";
 import { CLUSTER_ABOVE_PINS, overviewBounds, pinAppearance, uniquePoints } from "../src/lib/pins-marker.ts";
@@ -139,6 +139,11 @@ test("unexpected JSON never reaches the page", () => {
   assert.equal(map.pins[1].category.color, null, "A color must be a plain hex value");
   assert.deepEqual(Object.keys(map.pins[1]).sort(), ["category", "id", "latitude", "linkUrl", "longitude", "note", "placeName", "savedFrom", "title"], "Unknown fields are dropped, so they can never render");
   for (const link_url of ["javascript:alert(1)", "data:text/html,x", "file:///etc/passwd", "//evil.example", "not a url"]) assert.equal(parsePublicMap(body({ pins: [pin({ link_url })] }), "alan").pins[0].linkUrl, null, link_url);
+});
+
+test("a shared pin link accepts only a plain id", () => {
+  assert.equal(pinIdFromSearch("?pin=5f0c2a1e-7b1d-4c11-9a11-0123456789ab"), "5f0c2a1e-7b1d-4c11-9a11-0123456789ab");
+  for (const search of ["", "?other=1", "?pin=", "?pin=<script>", "?pin=a%20b", "?pin=" + "x".repeat(65)]) assert.equal(pinIdFromSearch(search), null, search);
 });
 
 test("a base map is only used when configured", () => {

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink } from "@/components/site";
 import { Icon } from "@/components/icons";
-import { displayNameFor, fetchPublicMap, publicMapConfig, publicMapPath, usernameFromPath, type PublicMap, type PublicMapPin, type PublicMapResult } from "@/lib/public-map";
+import { displayNameFor, fetchPublicMap, pinIdFromSearch, publicMapConfig, publicMapPath, usernameFromPath, type PublicMap, type PublicMapPin, type PublicMapResult } from "@/lib/public-map";
 import { CLUSTER_ABOVE_PINS, pinAppearance } from "@/lib/pins-marker";
 import { testFlightUrl } from "@/lib/site-config";
 import { MapCanvas } from "./map-canvas";
@@ -70,7 +70,8 @@ export function PublicMapApp() {
 function MapPage({ map }: { map: PublicMap }) {
   const name = displayNameFor(map);
   const [chosenCategory, setCategory] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // A shared link opens on its pin. The id is only compared with this map's own pins, never sent anywhere.
+  const [selectedId, setSelectedId] = useState<string | null>(() => pinIdFromSearch(window.location.search));
   const [listed, setListed] = useState(LIST_STEP);
   const categories = useMemo(() => {
     const counts = new Map<string, { name: string; icon: string | null; count: number }>();

@@ -43,6 +43,12 @@ export function usernameFromPath(pathname: string): string | null {
   return USERNAME.test(username) ? username : null;
 }
 
+/** `?pin=<id>` from a link shared in the app. Anything else is ignored, and an unknown id opens the map as usual. */
+export function pinIdFromSearch(search: string): string | null {
+  const id = new URLSearchParams(search).get("pin");
+  return id && /^[a-zA-Z0-9-]{1,64}$/.test(id) ? id : null;
+}
+
 export function publicMapPath(username: string) {
   return `/@${username}`;
 }
