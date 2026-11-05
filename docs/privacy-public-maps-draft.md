@@ -1,8 +1,9 @@
-# DRAFT: policy changes for public web maps
+# Policy changes for public web maps
 
-Status: draft for the owner's review. **Not applied** to `src/app/privacy/page.tsx` or
-`src/app/cookies/page.tsx`. Publish together with the feature (same deploy), and set
-`policyUpdated` / `policyUpdatedLabel` in `src/lib/site-config.ts` to the publish date.
+Status: **applied locally** to `src/app/privacy/page.tsx` and `src/app/cookies/page.tsx` on the
+feature branch and not published. Publish together with the feature (same deploy), and at that point
+set `policyUpdated` / `policyUpdatedLabel` in `src/lib/site-config.ts` to the publish date. The owner
+has not yet approved the wording. It has not had legal review.
 
 Each item quotes the current text and gives the replacement.
 
@@ -19,7 +20,7 @@ Replace with:
 
 ### 2. New subsection after “Pins”: “Public web maps”
 
-> You can publish a web map at joinpins.app/@yourusername from Profile, Settings, Web Map. It is
+> You can publish a web map at joinpins.app/@yourusername in the app under Settings, Privacy, Web Map. It is
 > off until you turn it on, and only a public profile can have one. Anyone with the link can open it
 > in a web browser without a Pins account.
 >
@@ -47,6 +48,10 @@ Current:
 Replace with:
 > **Supabase**: sign-in, the Pins database, profile photo storage, account deletion, and the data
 > shown on public web maps. …
+
+Keep the MapTiler bullet as it is for launch: web map pages launch **without** a MapTiler key and
+draw pins on a plain background, so the website contacts no map provider. Only if a web-only
+MapTiler key is added later, change it to:
 > **MapTiler**: place search when Apple search is unavailable, map display in some app versions,
 > and the map on public web map pages.
 
@@ -61,22 +66,29 @@ Replace with:
 
 ### 5. “This website” → “Browsing”: add after the first two sentences
 
-Add:
+Add (launch wording, no MapTiler):
 > Public web map pages (joinpins.app/@username) are the exception to the website's static content:
-> your browser asks the Pins database, hosted by Supabase, for that map's public data, and, to draw
-> the map, loads map images from MapTiler. These requests carry standard technical details such as
-> your IP address and browser headers. They are sent without a Pins sign-in or cookies, and they do
-> not include the address of the page you are viewing.
+> your browser asks the Pins database, hosted by Supabase, for that map's public data. This request
+> carries standard technical details such as your IP address and browser headers. It is sent
+> without a Pins sign-in or cookies, and it does not include the address of the page you are
+> viewing.
+
+If a MapTiler key is added later, replace the second sentence with: "your browser asks the Pins
+database, hosted by Supabase, for that map's public data, and, to draw the map, loads map images
+from MapTiler." and say "These requests" in the rest.
 
 ## Cookies (`/cookies`): “What this website uses”
 
 Current:
 > App screens are static screenshots; there is no third-party map on the website.
 
-Replace with:
-> App screens are static screenshots. Public web map pages load map images from MapTiler and
-> public map data from the Pins database (Supabase). These requests are made without cookies, and
-> the page does not save anything in your browser's storage.
+Replace with (launch wording, no MapTiler):
+> App screens are static screenshots. Public web map pages load that map's public data from the
+> Pins database (Supabase) and draw it without a third-party map provider. This request is made
+> without cookies, and the page does not save anything in your browser's storage.
+
+With a MapTiler key later: "Public web map pages load map images from MapTiler and public map data
+from the Pins database (Supabase). These requests are made without cookies, …"
 
 ## Facts behind the wording (verified in code and tests on 2026-11-02)
 
@@ -86,6 +98,12 @@ Replace with:
 - No sign-in, cookies or referrer on the data request; no browser storage: `fetchPublicMap`
   (`credentials: "omit"`, `referrerPolicy: "no-referrer"`), page `referrer` meta,
   `test-public-map-e2e.mjs`.
-- `noindex`: page metadata and `vercel.json` `X-Robots-Tag` (header confirmed only on a preview).
+- `noindex`: page metadata and `vercel.json` `X-Robots-Tag` (header to be confirmed on the preview).
+- No MapTiler at launch: no `NEXT_PUBLIC_MAPTILER_KEY` in any Vercel environment (verified
+  2026-11-02); the map then uses the plain background and makes no tile requests (fixture e2e).
+- Database side is live (migration 20261102000100 applied 2026-11-02) with every web map off.
+- The quoted "Current" passages were re-checked against `src/app/privacy/page.tsx` and
+  `src/app/cookies/page.tsx` on 2026-11-02. "Browsing" still says the site has no database "for
+  collecting requests", which stays true (the map only reads).
 - Blocking: anonymous visitors have no identity, so blocks cannot apply; signed-in blocked callers
   get nothing from the API, but the website never signs in.
