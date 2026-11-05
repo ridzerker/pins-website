@@ -13,8 +13,8 @@ const TILES = "https://tiles.openfreemap.org";
 const SUPABASE = "https://fixture.supabase.invalid";
 const artifacts = path.resolve(".preview/basemap");
 await fs.mkdir(artifacts, { recursive: true });
-const allowed = value => value.replace("https://*.supabase.co", `https://*.supabase.co ${SUPABASE} ${TILES}`);
-const notAllowed = value => value.replace("https://*.supabase.co", `https://*.supabase.co ${SUPABASE}`);
+const allowed = value => value.replace("https://*.supabase.co", `https://*.supabase.co ${SUPABASE}`);
+const notAllowed = value => allowed(value).replace(` ${TILES}`, "");
 const withProvider = await serveExport({ csp: allowed });
 const withoutCsp = await serveExport({ csp: notAllowed });
 
@@ -64,16 +64,36 @@ try {
       await page.waitForTimeout(6000);
       const hosts = new Set(tileRequests.map(({ url }) => new URL(url).host));
       await page.screenshot({ path: path.join(artifacts, `live-${name}.png`) });
+      // Rough responsiveness at 4x CPU slowdown. Software rendering, so this is pessimistic and not a phone.
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+      const box = await page.locator('[aria-label="Map of public pins"]').boundingBox();
+      const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+      await page.evaluate(() => { window.__frames = 0; const tick = () => { window.__frames++; requestAnimationFrame(tick); }; requestAnimationFrame(tick); });
+      const before = await page.evaluate(() => window.__frames), startedAt = Date.now();
+      await page.mouse.move(cx, cy); await page.mouse.down();
+      for (let step = 0; step < 30; step++) { await page.mouse.move(cx + Math.sin(step / 3) * 80, cy + Math.cos(step / 3) * 60); await page.waitForTimeout(16); }
+      await page.mouse.up();
+      await page.mouse.wheel(0, -300); await page.waitForTimeout(800); await page.mouse.wheel(0, 300); await page.waitForTimeout(800);
+      const fps = Math.round((await page.evaluate(() => window.__frames) - before) * 1000 / (Date.now() - startedAt));
+      await cdp.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+      await page.waitForTimeout(1500);
+      console.log(name, "after pan and zoom at 4x slowdown:", { fps, markers: await page.locator(".maplibregl-marker").count() });
       await page.locator('.maplibregl-marker[aria-label="Tartine"]').click();
       await page.waitForTimeout(4000);
       await page.screenshot({ path: path.join(artifacts, `live-${name}-selected.png`) });
+      await page.screenshot({ path: path.join(artifacts, `live-${name}-final.png`) });
       console.log(name, { tileRequests: tileRequests.length, hosts: [...hosts], cspErrors, otherHosts: [...otherHosts], referer: tileRequests.filter(({ headers }) => headers.referer).length, note: await page.getByText(NOTE).count(), attribution: await page.locator(".maplibregl-ctrl-attrib").innerText() });
       await context.close();
     }
   } else {
     {
       const { page, context, tileRequests, cspErrors, otherHosts } = await open(withProvider, working);
-      await page.locator(".maplibregl-ctrl-attrib", { hasText: "OpenStreetMap" }).waitFor({ state: "attached" });
+      await page.locator(".maplibregl-ctrl-attrib", { hasText: "OpenStreetMap" }).waitFor();
+      const box = await page.locator('[aria-label="Map of public pins"]').boundingBox();
+      await page.mouse.move(box.x + 300, box.y + 300); await page.mouse.down(); await page.mouse.move(box.x + 200, box.y + 200, { steps: 5 }); await page.mouse.up();
+      await page.waitForTimeout(400);
+      assert.ok(await page.locator(".maplibregl-ctrl-attrib", { hasText: "OpenFreeMap" }).isVisible(), "The credit stays visible after dragging");
       assert.equal(await page.getByText(NOTE).count(), 0, "A working base map shows no notice");
       assert.ok(tileRequests.some(({ url }) => url.endsWith("/styles/positron")));
       assert.ok(tileRequests.every(({ url }) => !/key=/.test(url)), "No key is sent");

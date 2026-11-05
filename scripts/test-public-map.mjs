@@ -187,6 +187,7 @@ test("security headers cover every page, and maps stay private to crawlers and r
     assert.match(headers["Content-Security-Policy"], /frame-ancestors 'none'/, path);
     assert.match(headers["Content-Security-Policy"], /object-src 'none'/, path);
     assert.doesNotMatch(headers["Content-Security-Policy"], /unsafe-eval/, path);
+    assert.match(headers["Content-Security-Policy"], /connect-src 'self' https:\/\/\*\.supabase\.co https:\/\/api\.maptiler\.com https:\/\/tiles\.openfreemap\.org;/, `Only these hosts: ${path}`);
     assert.match(headers["Strict-Transport-Security"], /max-age=\d{8}/, path);
     assert.match(headers["Permissions-Policy"], /geolocation=\(\)/, path);
   }

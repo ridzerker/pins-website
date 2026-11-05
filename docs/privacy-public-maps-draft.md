@@ -49,9 +49,12 @@ Replace with:
 > **Supabase**: sign-in, the Pins database, profile photo storage, account deletion, and the data
 > shown on public web maps. …
 
-Keep the MapTiler bullet as it is for launch: web map pages launch **without** a MapTiler key and
-draw pins on a plain background, so the website contacts no map provider. Only if a web-only
-MapTiler key is added later, change it to:
+Keep the MapTiler bullet as it is: the chosen base map is OpenFreeMap (founder's decision,
+2026-11-05, Preview only so far). Add:
+> **OpenFreeMap**: the background map on public web map pages, delivered through its content network,
+> which may include Cloudflare. The map uses data from OpenStreetMap.
+
+Only if a web-only MapTiler key is added later, change the MapTiler bullet to:
 > **MapTiler**: place search when Apple search is unavailable, map display in some app versions,
 > and the map on public web map pages.
 
@@ -66,29 +69,27 @@ Replace with:
 
 ### 5. “This website” → “Browsing”: add after the first two sentences
 
-Add (launch wording, no MapTiler):
+Add (launch wording, OpenFreeMap):
 > Public web map pages (joinpins.app/@username) are the exception to the website's static content:
-> your browser asks the Pins database, hosted by Supabase, for that map's public data. This request
-> carries standard technical details such as your IP address and browser headers. It is sent
-> without a Pins sign-in or cookies, and it does not include the address of the page you are
-> viewing.
+> your browser asks the Pins database, hosted by Supabase, for that map's public data, and, to draw
+> the map, loads map tiles, labels and icons from OpenFreeMap. These requests carry standard technical
+> details such as your IP address and browser headers, and the tile requests show which part of the
+> map you are viewing. They are sent without a Pins sign-in or cookies, and they do not include the
+> address of the page you are viewing.
 
-If a MapTiler key is added later, replace the second sentence with: "your browser asks the Pins
-database, hosted by Supabase, for that map's public data, and, to draw the map, loads map images
-from MapTiler." and say "These requests" in the rest.
+If production ever launches without a base map, remove the OpenFreeMap wording here, in Services and
+in Cookies.
 
 ## Cookies (`/cookies`): “What this website uses”
 
 Current:
 > App screens are static screenshots; there is no third-party map on the website.
 
-Replace with (launch wording, no MapTiler):
+Replace with (launch wording, OpenFreeMap):
 > App screens are static screenshots. Public web map pages load that map's public data from the
-> Pins database (Supabase) and draw it without a third-party map provider. This request is made
-> without cookies, and the page does not save anything in your browser's storage.
-
-With a MapTiler key later: "Public web map pages load map images from MapTiler and public map data
-from the Pins database (Supabase). These requests are made without cookies, …"
+> Pins database (Supabase), and map tiles, labels and icons from OpenFreeMap, which says it does not
+> use cookies or tracking. These requests are made without cookies, and the page does not save
+> anything in your browser's storage.
 
 ## Facts behind the wording (verified in code and tests on 2026-11-02)
 

@@ -89,7 +89,8 @@ export function MapCanvas({ pins, clustered, selectedId, onSelect }: { pins: Pub
         if (cancelled || !container.current) return;
         maplibre.setWorkerUrl(new URL(MAPLIBRE_WORKER_URL, window.location.origin).href);
         setBasemap(basemap);
-        map = new maplibre.Map({ container: container.current, style, center: [NEUTRAL_MAP_CENTER.longitude, NEUTRAL_MAP_CENTER.latitude], zoom: 1, attributionControl: { compact: true },
+        map = new maplibre.Map({ container: container.current, style, center: [NEUTRAL_MAP_CENTER.longitude, NEUTRAL_MAP_CENTER.latitude], zoom: 1, // Not compact: it would collapse to an icon on the first drag, and the provider requires this credit.
+          attributionControl: { compact: false },
           cooperativeGestures: false, pitchWithRotate: false, touchPitch: false, maxZoom: 20 });
         map.addControl(new maplibre.NavigationControl({ showCompass: true, visualizePitch: false }), "top-right");
         // Like the app's compass, it appears only once the map is rotated. Tapping it returns to north.

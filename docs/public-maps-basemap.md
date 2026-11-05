@@ -1,8 +1,9 @@
 # Base map for public web maps
 
-Status: **no provider is active.** Without configuration, the site contacts no map provider and draws
-pins on a plain background with a "Map background unavailable" note. The code below is ready; turning
-one on is the founder's decision.
+Status: **OpenFreeMap Positron is chosen (2026-11-05) and approved for the protected Preview only.** Its
+host is in the security policy, and `NEXT_PUBLIC_MAP_PROVIDER=openfreemap` is set for this branch's Preview.
+Production has no provider until that variable is set there, so it contacts no map provider and would draw
+pins on a plain background with a "Map background unavailable" note.
 
 ## Options (terms read 2026-11-05)
 
@@ -21,7 +22,7 @@ Sources: [OpenFreeMap](https://openfreemap.org/), its [terms](https://openfreema
 [privacy policy](https://openfreemap.org/privacy/), and [MapTiler pricing](https://www.maptiler.com/cloud/pricing/).
 Have someone recheck these before launch: terms change.
 
-**Recommendation: OpenFreeMap Positron for launch.** It needs no account or spending, and it looks like
+**Decision: OpenFreeMap Positron for launch.** It needs no account or spending, and it looks like
 Pins in the local demo. Its real risk is reliability, and the page already handles that: if the
 provider fails, pins keep working on the plain background with the note. If it proves unreliable or
 traffic grows, moving to MapTiler is a configuration change.
@@ -39,16 +40,11 @@ reaching its servers. It does not get the username: map pages and the map worker
   OpenFreeMap's host added: tiles loaded, no violations, no referrer, attribution shown.
 - Not tested: a Vercel preview, Safari, Firefox, real phones, or provider behavior under load.
 
-## Turning on OpenFreeMap (needs approval)
+## Turning on OpenFreeMap in production (needs approval)
 
-1. In `vercel.json`, add `https://tiles.openfreemap.org` to the policy's `connect-src`. Until this is done,
-   the browser blocks the provider and the page falls back to the plain background.
-2. Set `NEXT_PUBLIC_MAP_PROVIDER=openfreemap` in Vercel for Preview, check the preview, then Production.
-3. Update the policies in the same release:
-   - Privacy, "Services we use": add **OpenFreeMap**: the base map on public web map pages. Its servers
-     and its CDN, Cloudflare, receive the visitor's IP address and the map area being viewed.
-   - Cookies: replace "draw it without a third-party map provider" with "draw it over a base map from
-     OpenFreeMap, which sets no cookies".
+`vercel.json` and the Privacy and Cookies text already name OpenFreeMap on this branch. Set
+`NEXT_PUBLIC_MAP_PROVIDER=openfreemap` for Production before the merge, and publish the policies in the same
+release. Attribution comes from the provider's data and MapLibre shows it automatically.
 
 ## Turning on MapTiler instead (needs approval and a paid plan)
 
