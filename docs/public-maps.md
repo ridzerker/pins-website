@@ -11,15 +11,17 @@ Opt-in public maps that anyone can open without an account, for example `joinpin
 - The shell contains no user data. In the browser, `src/components/public-map/public-map-app.tsx`
   reads the username from the URL and calls the Pins `get_public_web_map` database function
   (`src/lib/public-map.ts`) with the public anon key, with no session, cookies or referrer, and
-  without caching. Turning sharing off in the app takes effect on the next page load.
+  without caching. Turning sharing off in the app takes effect on the next page load. A tab left open
+  rechecks when the visitor returns to it, at most once a minute, so a revoked map or deleted pin goes away then.
 - The database decides what is public: only users who turned on their web map, only their public
   pins, and a fixed set of fields. `src/lib/public-map.ts` validates the response again, and unknown,
   private and disabled usernames show the same "This map isn't available." page.
 - The map uses MapLibre GL (`maplibre-gl`, pinned) with keyboard-accessible markers that reproduce
   the app's pins and camera (`src/lib/pins-marker.ts`, [visual parity](public-map-visual-parity.md)).
   Like the app it does not cluster, except on maps above 300 pins.
-  The base map is MapTiler Basic softened with the app's palette (`src/lib/pins-map-style.ts`,
-  vendored from the app). Without a MapTiler key it falls back to a plain background. MapLibre v6
+  The base map is optional and off by default, with a plain background otherwise: see
+  [public-maps-basemap.md](public-maps-basemap.md). MapTiler Basic uses the app's palette through
+  `src/lib/pins-map-style.ts`, vendored from the app, and OpenFreeMap through `src/lib/map-provider.ts`. MapLibre v6
   loads its worker from a runtime URL that bundlers cannot see, so the pinned worker and its BSD-3
   license are committed in `public/vendor/` (byte-exact via `.gitattributes`). After upgrading
   `maplibre-gl`, run `node scripts/copy-maplibre-worker.mjs` and update `MAPLIBRE_WORKER_URL`;
@@ -34,9 +36,10 @@ card: per-profile previews would need server rendering, a hosting change that ha
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | The Pins project URL (`https://<ref>.supabase.co`) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | The Pins anon/publishable key (the same public key the app ships) |
+| `NEXT_PUBLIC_MAP_PROVIDER` | No | `openfreemap` or `maptiler`; empty contacts no provider |
 | `NEXT_PUBLIC_MAPTILER_KEY` | No | A website-only MapTiler key restricted to the site's origins; without it, pins show on a plain background |
 
-Without the Supabase pair, `/@username` pages show "This map isn't available." All three values
+Without the Supabase pair, `/@username` pages show "This map isn't available." These values
 are compiled into browser JavaScript and are public by design. Never add a Supabase service-role
 or secret key, or any non-`NEXT_PUBLIC_` secret. Set them for Preview first, then Production.
 

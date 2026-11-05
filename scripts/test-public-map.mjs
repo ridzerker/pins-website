@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { fetchPublicMap, parsePublicMap, publicMapConfig, usernameFromPath } from "../src/lib/public-map.ts";
 import { headersFor } from "./lib/vercel-headers.mjs";
+import { chooseBasemap, softenPositronStyle } from "../src/lib/map-provider.ts";
 import { CLUSTER_ABOVE_PINS, overviewBounds, pinAppearance, uniquePoints } from "../src/lib/pins-marker.ts";
 
 const config = { supabaseUrl: "https://project.supabase.co", anonKey: "anon-test-key" };
@@ -126,6 +127,48 @@ test("a stalled request ends in an error the page can retry, and a caller's abor
   await assert.rejects(pending, { name: "AbortError" });
 });
 
+test("a response whose body stalls also times out", async () => {
+  const stalledBody = async (_url, { signal }) => ({ ok: true, json: () => new Promise((_, reject) => signal.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")))) });
+  assert.deepEqual(await fetchPublicMap("alan", config, stalledBody, undefined, 5), { status: "error" });
+});
+
+test("unexpected JSON never reaches the page", () => {
+  for (const value of [[], "text", 7, {}, { profile: {} }, { profile: { username: "alan" }, pins: {} }, { profile: { username: "someone.else" }, pins: [] }]) assert.equal(parsePublicMap(value, "alan"), null);
+  const map = parsePublicMap(body({ pins: [pin(), null, "x", pin({ latitude: "34" }), pin({ longitude: 999 }), pin({ title: {} }), pin({ private_note: "secret", user_id: "u1", category: { name: "Food", color: "red;background:url(x)" } })] }), "alan");
+  assert.equal(map.pins.length, 2, "Malformed pins are skipped");
+  assert.equal(map.pins[1].category.color, null, "A color must be a plain hex value");
+  assert.deepEqual(Object.keys(map.pins[1]).sort(), ["category", "id", "latitude", "linkUrl", "longitude", "note", "placeName", "savedFrom", "title"], "Unknown fields are dropped, so they can never render");
+  for (const link_url of ["javascript:alert(1)", "data:text/html,x", "file:///etc/passwd", "//evil.example", "not a url"]) assert.equal(parsePublicMap(body({ pins: [pin({ link_url })] }), "alan").pins[0].linkUrl, null, link_url);
+});
+
+test("a base map is only used when configured", () => {
+  assert.deepEqual(chooseBasemap({}), { kind: "none" });
+  assert.deepEqual(chooseBasemap({ provider: " ", maptilerKey: " " }), { kind: "none" });
+  assert.deepEqual(chooseBasemap({ provider: "maptiler" }), { kind: "none" }, "MapTiler without a key contacts nobody");
+  assert.deepEqual(chooseBasemap({ provider: "something-else", maptilerKey: "k" }), { kind: "none" });
+  assert.equal(chooseBasemap({ maptilerKey: "a b" }).styleUrl, "https://api.maptiler.com/maps/basic-v2/style.json?key=a%20b");
+  assert.equal(chooseBasemap({ provider: "OpenFreeMap", maptilerKey: "k" }).styleUrl, "https://tiles.openfreemap.org/styles/positron");
+});
+
+test("OpenFreeMap's style takes the Pins palette and keeps what it doesn't recognize", () => {
+  const source = "openmaptiles";
+  const style = { version: 8, center: [1, 2], zoom: 5, sources: { openmaptiles: { type: "vector" }, ne2_shaded: { type: "raster" } }, layers: [
+    { id: "background", type: "background", paint: {} }, { id: "water", type: "fill", source, paint: {} }, { id: "highway_minor", type: "line", source, paint: {} },
+    { id: "railway_transit", type: "line", source, paint: {} }, { id: "building", type: "fill", source, paint: {} }, { id: "label_city", type: "symbol", source, paint: {} }, { id: "brand_new", type: "line", source, paint: { "line-color": "#123" } },
+  ] };
+  const result = softenPositronStyle(style);
+  const layer = id => result.layers.find(item => item.id === id);
+  assert.equal(layer("background").paint["background-color"], "#EEEFE1");
+  assert.equal(layer("water").paint["fill-color"], "#D4E5E7");
+  assert.equal(layer("railway_transit").layout.visibility, "none");
+  assert.equal(layer("building").minzoom, 14.5);
+  assert.equal(layer("label_city").paint["text-halo-color"], "#EEEFE1");
+  assert.equal(layer("brand_new").paint["line-color"], "#123");
+  assert.equal(result.center, undefined, "No competing camera");
+  assert.deepEqual(Object.keys(result.sources), ["openmaptiles"], "Unused sources are dropped");
+  assert.throws(() => softenPositronStyle({ version: 8, sources: {}, layers: [] }));
+});
+
 test("links hiding behind user:password@ are dropped", () => {
   const map = parsePublicMap(body({ pins: [pin({ link_url: "https://bank.example:secret@evil.example/" })] }), "alan");
   assert.equal(map.pins[0].linkUrl, null);
@@ -146,6 +189,7 @@ test("security headers cover every page, and maps stay private to crawlers and r
     assert.equal(headersFor(path)["X-Robots-Tag"], "noindex, nofollow", path);
     assert.equal(headersFor(path)["Referrer-Policy"], "no-referrer", path);
   }
+  assert.equal(headersFor("/vendor/maplibre-gl-worker-6.14.0.mjs")["Referrer-Policy"], "no-referrer", "Tile requests come from the worker, which has its own policy");
   assert.equal(headersFor("/")["X-Robots-Tag"], undefined, "The marketing site stays indexable");
   assert.equal(headersFor("/")["Referrer-Policy"], "strict-origin-when-cross-origin");
 });

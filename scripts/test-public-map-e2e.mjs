@@ -51,7 +51,10 @@ const origin = `http://127.0.0.1:${server.address().port}`;
 // Fixtures: what the database function would return. null = unknown, private or disabled.
 const pin = (id, title, lat, lng, category, extra = {}) => ({ id, title, note: null, place_name: null, link_url: null, latitude: lat, longitude: lng, category, saved_from: null, ...extra });
 const food = { name: "Food", icon: "🍔", color: "#FF8E3C" }, coffee = { name: "Coffee", icon: "☕", color: "#8B5E3C" }, plain = { name: "Pin", icon: null, color: null };
+// Many pins in one small area, so a filtered category still clusters around the selected pin.
+const clusterPins = Array.from({ length: 400 }, (_, n) => pin(`c${n}`, `Spot ${n}`, 34.05 + (n % 20) * 0.0004, -118.25 + Math.floor(n / 20) * 0.0004, n % 8 ? coffee : food));
 const fixtures = {
+  clusters: { profile: { username: "clusters", display_name: "Cluster Map", bio: null, public_pin_count: 400 }, truncated: false, pins: clusterPins },
   alan: { profile: { username: "alan", display_name: "Alan Tran", bio: "Tacos, coffee and long walks.", public_pin_count: 4 }, truncated: false, pins: [
     pin("p1", "Taco Spot", 34.05, -118.25, food, { note: "Best al pastor in town.", place_name: "Taco Spot, Los Angeles", link_url: "https://example.com/taco" }),
     pin("p2", "Morning Coffee", 34.07, -118.3, coffee, { saved_from: { username: "quinn", display_name: "Quinn" } }),
@@ -67,8 +70,10 @@ const fixtures = {
     pins: Array.from({ length: 2000 }, (_, n) => pin(`b${n}`, `Place ${n}`, 20 + (n % 50) * 0.6, -120 + Math.floor(n / 50) * 0.9, n % 2 ? food : coffee)) },
 };
 let flakyFailures = 0;
+let failAlan = false;
 const rpcCalls = [];
 const answer = username => {
+  if (username === "alan" && failAlan) return { status: 500, body: { message: "temporary" } };
   if (username === "flaky" && flakyFailures-- > 0) return { status: 500, body: { message: "temporary" } };
   if (username === "flaky") return { status: 200, body: { ...fixtures.newbie, profile: { ...fixtures.newbie.profile, username: "flaky" } } };
   return { status: 200, body: fixtures[username] ?? null };
@@ -282,6 +287,60 @@ try {
   await page.locator('.maplibregl-marker[aria-label="Place 7"][aria-pressed="true"]').waitFor({ timeout: 20000 });
   await page.getByRole("button", { name: "← All pins" }).click();
   pass(`a 2,000-pin map clusters (${domMarkers} DOM markers), lists progressively and states truncation (${elapsed} ms to first marker, headless SwiftShader)`);
+
+  await page.goto(origin + "/@clusters");
+  await page.locator(".maplibregl-marker").first().waitFor({ timeout: 20000 });
+  await page.getByRole("button", { name: /Food 50/ }).click();
+  await page.getByRole("heading", { name: "Food", level: 2 }).waitFor();
+  await page.locator("aside").getByRole("button", { name: "Spot 8", exact: true }).click();
+  await page.locator('.maplibregl-marker[aria-label="Spot 8"][aria-pressed="true"]').waitFor({ timeout: 20000 });
+  await page.getByRole("button", { name: "← All pins" }).click();
+  await page.waitForTimeout(800);
+  const clusterLabels = await page.locator(".maplibregl-marker").evaluateAll(items => items.map(item => item.getAttribute("aria-label")));
+  assert.ok(clusterLabels.every(label => /^Spot \d+$/.test(label) ? Number(label.slice(5)) % 8 === 0 : /pins here/.test(label)), `A filtered map shows only that category: ${clusterLabels.slice(0, 5)}`);
+  pass("a pin selected from a filtered, clustered map is shown as a marker, with no markers left from other categories");
+
+  // Coming back to an open tab: nothing is requested until a minute has passed, then fresh data wins.
+  const returnToTab = () => page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  const skipAMinute = () => page.evaluate(() => { const real = Date.now; Date.now = () => real() + 61000; });
+  const callsFor = name => rpcCalls.filter(item => item.body.target_username === name).length;
+  rpcCalls.length = 0;
+  await page.goto(origin + "/@alan");
+  await page.locator('.maplibregl-marker[aria-label="Taco Spot"]').waitFor({ timeout: 20000 });
+  assert.equal(callsFor("alan"), 1, "One load makes one data request");
+  await returnToTab();
+  await page.waitForTimeout(100);
+  assert.equal(callsFor("alan"), 1, "Returning within a minute makes no request");
+  await page.locator("aside").getByRole("button", { name: /Taco Spot/ }).click();
+  await page.getByRole("heading", { name: "Taco Spot", level: 2 }).waitFor();
+  await skipAMinute();
+  await returnToTab();
+  await page.waitForTimeout(200);
+  assert.equal(callsFor("alan"), 2, "Returning after a minute checks once");
+  await page.getByRole("heading", { name: "Taco Spot", level: 2 }).waitFor();
+  failAlan = true;
+  await skipAMinute();
+  await returnToTab();
+  await page.waitForTimeout(200);
+  failAlan = false;
+  assert.equal(callsFor("alan"), 3);
+  await page.getByRole("heading", { name: "Taco Spot", level: 2 }).waitFor();
+  pass("returning to a tab rechecks at most once a minute, and unchanged data or a failed check leaves open details alone");
+  // The pin is deleted, then the whole map is revoked, while the tab stays open.
+  const alanBefore = fixtures.alan;
+  fixtures.alan = { ...alanBefore, profile: { ...alanBefore.profile, public_pin_count: 3 }, pins: alanBefore.pins.filter(item => item.id !== "p1") };
+  await skipAMinute();
+  await returnToTab();
+  await page.getByText("3 public pins", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("heading", { name: "Taco Spot", level: 2 }).count(), 0, "Details of a deleted pin close");
+  await page.waitForFunction(() => !document.querySelector('.maplibregl-marker[aria-label="Taco Spot"]'), null, { timeout: 5000 });
+  delete fixtures.alan;
+  await skipAMinute();
+  await returnToTab();
+  await page.getByRole("heading", { name: "This map isn’t available.", level: 1 }).waitFor();
+  assert.ok(!(await page.content()).includes("Morning Coffee"), "No pin data remains on the page after revocation");
+  fixtures.alan = alanBefore;
+  pass("while a tab stays open, a deleted pin and a revoked map disappear on return");
 
   const noJs = await browser.newContext({ javaScriptEnabled: false });
   await noJs.route("**/*", route => route.request().url().startsWith(origin) ? route.continue() : route.abort());

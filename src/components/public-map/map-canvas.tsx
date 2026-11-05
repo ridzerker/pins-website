@@ -3,18 +3,28 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
 import type { GeoJSONSource, Map as MapLibreMap, Marker, StyleSpecification } from "maplibre-gl";
 import type { PublicMapPin } from "@/lib/public-map";
+import { chooseBasemap, softenPositronStyle } from "@/lib/map-provider";
 import { softenBasicMapStyle } from "@/lib/pins-map-style";
-import { CLUSTER_ABOVE_PINS, MAP_OVERVIEW_PADDING, NEUTRAL_MAP_CENTER, overviewBounds, pinAppearance, uniquePoints } from "@/lib/pins-marker";
+import { MAP_OVERVIEW_PADDING, NEUTRAL_MAP_CENTER, overviewBounds, pinAppearance, uniquePoints } from "@/lib/pins-marker";
 import styles from "./public-map.module.css";
 
 // Copied from node_modules by scripts/copy-maplibre-worker.mjs (prebuild/predev); versioned for caching.
 export const MAPLIBRE_WORKER_URL = "/vendor/maplibre-gl-worker-6.14.0.mjs";
-const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY?.trim() || null;
+const BASEMAP = chooseBasemap({ provider: process.env.NEXT_PUBLIC_MAP_PROVIDER, maptilerKey: process.env.NEXT_PUBLIC_MAPTILER_KEY });
 const FALLBACK_STYLE: StyleSpecification = { version: 8, sources: {}, layers: [{ id: "Background", type: "background", paint: { "background-color": "#EEEFE1" } }] };
 
 async function loadStyle(): Promise<{ style: StyleSpecification | string; basemap: boolean }> {
-  if (!MAPTILER_KEY) return { style: FALLBACK_STYLE, basemap: false };
-  const url = `https://api.maptiler.com/maps/basic-v2/style.json?key=${encodeURIComponent(MAPTILER_KEY)}`;
+  if (BASEMAP.kind === "none") return { style: FALLBACK_STYLE, basemap: false };
+  const url = BASEMAP.styleUrl;
+  if (BASEMAP.kind === "openfreemap") {
+    try {
+      const response = await fetch(url, { credentials: "omit", referrerPolicy: "no-referrer" });
+      if (!response.ok) throw new Error("Map style unavailable");
+      return { style: softenPositronStyle(await response.json()), basemap: true };
+    } catch {
+      return { style: FALLBACK_STYLE, basemap: false };
+    }
+  }
   try {
     const response = await fetch(url, { credentials: "omit", referrerPolicy: "strict-origin" });
     if (!response.ok) throw new Error("Map style unavailable");
@@ -59,13 +69,14 @@ function fitGlyph(glyph: HTMLElement) {
   glyph.style.fontSize = `${Math.max(GLYPH_MIN_SIZE, GLYPH_SIZE * GLYPH_WIDTH / glyph.scrollWidth)}px`;
 }
 
-export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]; selectedId: string | null; onSelect: (id: string | null) => void }) {
+/** `clustered` is fixed for this map's lifetime: filters change `pins` but not how the source was created. */
+export function MapCanvas({ pins, clustered, selectedId, onSelect }: { pins: PublicMapPin[]; clustered: boolean; selectedId: string | null; onSelect: (id: string | null) => void }) {
   const container = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markers = useRef(new Map<string, { marker: Marker; element: HTMLButtonElement }>());
   const rendered = useRef<PublicMapPin[] | null>(null);
-  const latest = useRef({ pins, selectedId, onSelect });
-  useEffect(() => { latest.current = { pins, selectedId, onSelect }; });
+  const latest = useRef({ pins, clustered, selectedId, onSelect });
+  useEffect(() => { latest.current = { pins, clustered, selectedId, onSelect }; });
   const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
   const [basemap, setBasemap] = useState(true);
 
@@ -132,19 +143,29 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
 
         current.on("load", () => {
           if (cancelled) return;
-          current.addSource("pins", { type: "geojson", data: geojson(latest.current.pins), cluster: latest.current.pins.length > CLUSTER_ABOVE_PINS, clusterRadius: 52, clusterMaxZoom: CLUSTER_MAX_ZOOM });
+          current.addSource("pins", { type: "geojson", data: geojson(latest.current.pins), cluster: latest.current.clustered, clusterRadius: 52, clusterMaxZoom: CLUSTER_MAX_ZOOM });
           // An invisible layer keeps the source's tiles loaded so querySourceFeatures sees every point.
           current.addLayer({ id: "pins-hit", type: "circle", source: "pins", paint: { "circle-radius": 1, "circle-opacity": 0 } });
           rendered.current = latest.current.pins;
-          frame(current, latest.current.pins, false);
+          // A pin chosen from the list while the map was loading keeps its place instead of the overview.
+          const chosen = latest.current.pins.find(pin => pin.id === latest.current.selectedId);
+          if (chosen) current.jumpTo({ center: [chosen.longitude, chosen.latitude], zoom: selectionZoom(latest.current.clustered) });
+          else frame(current, latest.current.pins, false);
           current.on("sourcedata", event => { if (event.sourceId === "pins") scheduleSync(); });
           current.on("moveend", scheduleSync);
           current.on("idle", scheduleSync);
           current.on("click", () => latest.current.onSelect(null));
           setState("ready");
         });
-        // Only a style that never loads fails the map; a missing tile just leaves a gap.
-        current.on("error", () => { if (!current.isStyleLoaded()) setState(s => s === "ready" ? s : "failed"); });
+        // A provider with no working tiles leaves a plain background, so say so. One missing tile is just a gap.
+        let baseTileLoaded = false;
+        current.on("data", event => { if (event.dataType === "source" && "tile" in event && event.tile && event.sourceId !== "pins") baseTileLoaded = true; });
+        // Only a style that never loads fails the map; a source's error never stops the pins.
+        current.on("error", event => {
+          const sourceId = (event as { sourceId?: string }).sourceId;
+          if (sourceId) { if (sourceId !== "pins" && !baseTileLoaded) setBasemap(false); return; }
+          if (!current.isStyleLoaded()) setState(s => s === "ready" ? s : "failed");
+        });
       } catch {
         if (!cancelled) setState("failed");
       }
@@ -175,11 +196,8 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
   useEffect(() => {
     for (const [key, entry] of markers.current) if (key.startsWith("p")) markSelected(entry.element, key === `p${selectedId}`);
     const pin = pins.find(item => item.id === selectedId);
-    // The app's focusCoordinate: center on the pin at zoom 14 in 250 ms. A clustered map goes past
-    // the last cluster zoom, or the selected pin would stay hidden inside a cluster.
-    const zoom = pins.length > CLUSTER_ABOVE_PINS ? Math.max(14, CLUSTER_MAX_ZOOM + 1) : 14;
-    if (pin) mapRef.current?.easeTo({ center: [pin.longitude, pin.latitude], zoom, duration: 250 });
-  }, [selectedId, pins]);
+    if (pin) mapRef.current?.easeTo({ center: [pin.longitude, pin.latitude], zoom: selectionZoom(clustered), duration: 250 });
+  }, [selectedId, pins, clustered]);
 
   return <div className={styles.mapFrame}>
     <div ref={container} className={styles.map} role="region" aria-label="Map of public pins" />
@@ -187,6 +205,11 @@ export function MapCanvas({ pins, selectedId, onSelect }: { pins: PublicMapPin[]
     {state === "failed" && <p className={styles.mapStatus} role="status">The map couldn’t load. You can still browse the pins in the list.</p>}
     {state === "ready" && !basemap && <p className={styles.mapNote}>Map background unavailable</p>}
   </div>;
+}
+
+/** The app's focusCoordinate zoom. A clustered map goes past the last cluster zoom, or the selected pin would stay hidden inside a cluster. */
+function selectionZoom(clustered: boolean) {
+  return clustered ? Math.max(14, CLUSTER_MAX_ZOOM + 1) : 14;
 }
 
 function geojson(pins: PublicMapPin[]): GeoJSON.FeatureCollection<GeoJSON.Point, FeatureProps> {
