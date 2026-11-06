@@ -1,7 +1,7 @@
 # Policy changes for public web maps
 
-Status: **applied locally** to `src/app/privacy/page.tsx` and `src/app/cookies/page.tsx` on the
-feature branch and not published. Publish together with the feature (same deploy), and at that point
+Status: **applied** to `src/app/privacy/page.tsx` and `src/app/cookies/page.tsx` on the feature
+branch, and not published on the production site. Publish together with the feature (same deploy), and at that point
 set `policyUpdated` / `policyUpdatedLabel` in `src/lib/site-config.ts` to the publish date. The owner
 has not yet approved the wording. It has not had legal review.
 
@@ -27,17 +27,18 @@ Replace with:
 > A web map shows your display name, username, bio, how many public pins you have, and, for each
 > public pin, its title, category, note, place name, link, and exact location. A pin you saved from
 > someone else names the original creator only if that person also publishes a web map. It never
-> shows Only Me or Circle pins, your profile photo, followers, Circles, ratings, statuses, or when
-> you added a pin.
+> shows Only Me or Circle pins, your profile photo, followers, Circles, ratings, statuses, or the
+> date you added a pin, though pins are listed newest first.
 >
 > Because the page works without signing in, blocking someone in Pins does not stop them from
 > viewing your web map. Web map pages ask search engines not to index them, but anyone with the
 > link can view, copy, or share what it shows, and we cannot recall copies other people make.
 >
-> Turning your web map off, making your profile private, or changing your username stops the page
-> from showing your map the next time it loads. Making your profile private turns your web map off,
-> and it stays off until you turn it on again. Changing a pin's audience or deleting it removes it
-> from your web map.
+> Turning your web map off, making your profile private, deleting your account, or changing your
+> username stops the page from showing your map the next time it loads. A page someone already has
+> open keeps showing what it loaded until it refreshes. Making your profile private turns your web
+> map off, and it stays off until you turn it on again. Changing a pin's audience or deleting it
+> removes it from your web map, and so does the original creator making a pin you saved no longer public.
 
 ### 3. “Services we use”: Supabase and MapTiler bullets
 
@@ -53,6 +54,8 @@ Keep the MapTiler bullet as it is: the chosen base map is OpenFreeMap (founder's
 2026-11-05, Preview only so far). Add:
 > **OpenFreeMap**: the background map on public web map pages, delivered through its content network,
 > which may include Cloudflare. The map uses data from OpenStreetMap.
+>
+> **Google**: Sign in with Google, if you choose it, and Google Maps, if a visitor opens a web map pin there.
 
 Only if a web-only MapTiler key is added later, change the MapTiler bullet to:
 > **MapTiler**: place search when Apple search is unavailable, map display in some app versions,
@@ -75,7 +78,8 @@ Add (launch wording, OpenFreeMap):
 > the map, loads map tiles, labels and icons from OpenFreeMap. These requests carry standard technical
 > details such as your IP address and browser headers, and the tile requests show which part of the
 > map you are viewing. They are sent without a Pins sign-in or cookies, and they do not include the
-> address of the page you are viewing.
+> address of the page you are viewing. If you choose "Open in Maps" or a pin's link, you leave Pins,
+> and that site receives your request under its own policies.
 
 If production ever launches without a base map, remove the OpenFreeMap wording here, in Services and
 in Cookies.
