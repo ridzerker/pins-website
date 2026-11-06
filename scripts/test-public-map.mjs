@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { test } from "node:test";
 import { fetchPublicMap, parsePublicMap, pinIdFromSearch, publicMapConfig, usernameFromPath } from "../src/lib/public-map.ts";
 import { headersFor } from "./lib/vercel-headers.mjs";
+import { problemsWith } from "./lib/build-env.mjs";
 import { chooseBasemap, softenPositronStyle } from "../src/lib/map-provider.ts";
 import { CLUSTER_ABOVE_PINS, overviewBounds, pinAppearance, uniquePoints } from "../src/lib/pins-marker.ts";
 
@@ -198,4 +200,44 @@ test("security headers cover every page, and maps stay private to crawlers and r
   assert.equal(headersFor("/vendor/maplibre-gl-worker-6.14.0.mjs")["Referrer-Policy"], "no-referrer", "Tile requests come from the worker, which has its own policy");
   assert.equal(headersFor("/")["X-Robots-Tag"], undefined, "The marketing site stays indexable");
   assert.equal(headersFor("/")["Referrer-Policy"], "strict-origin-when-cross-origin");
+});
+
+test("hidden characters are removed, and limits never cut an emoji in half", () => {
+  const map = parsePublicMap(body({ profile: { username: "alan", display_name: "Al\u202Ean\u0007", bio: "line one\nline two", public_pin_count: 1 },
+    pins: [pin({ title: "🍔".repeat(250), note: "a\u2066b\u0000c", category: { name: "Fo\u202Eod", icon: "\u0001🍔", color: "#FF8E3C" } })] }), "alan");
+  assert.equal(map.displayName, "Alan");
+  assert.equal(map.bio, "line one\nline two", "Line breaks stay");
+  assert.equal(map.pins[0].title, "🍔".repeat(200), "The limit counts characters, like the database");
+  assert.equal(map.pins[0].note, "abc");
+  assert.deepEqual([map.pins[0].category.name, map.pins[0].category.icon], ["Food", "🍔"]);
+  for (const link_url of ["https://exa\u0000mple.com", "https://example.com/\u202Egpj.exe", "java\u0001script:alert(1)"]) assert.equal(parsePublicMap(body({ pins: [pin({ link_url })] }), "alan").pins[0].linkUrl, null, link_url);
+  assert.equal(parsePublicMap(body({ pins: [pin({ title: "\u202E\u0007" })] }), "alan").pins.length, 0, "A title of only hidden characters is no title");
+});
+
+test("a production build refuses missing settings, and any build refuses a secret in a public variable", () => {
+  const jwt = role => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify({ role })).toString("base64url")}.signature`;
+  const good = { NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co", NEXT_PUBLIC_SUPABASE_ANON_KEY: jwt("anon"), NEXT_PUBLIC_MAP_PROVIDER: "openfreemap" };
+  assert.deepEqual(problemsWith({ ...good, VERCEL_ENV: "production" }), []);
+  assert.deepEqual(problemsWith({}), [], "Local builds and fixtures need nothing");
+  assert.deepEqual(problemsWith({ VERCEL_ENV: "preview" }), [], "Other preview branches need nothing");
+  assert.equal(problemsWith({ VERCEL_ENV: "production" }).length, 3);
+  assert.equal(problemsWith({ ...good, VERCEL_ENV: "production", NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.invalid" }).length, 1);
+  assert.equal(problemsWith({ ...good, VERCEL_ENV: "production", NEXT_PUBLIC_MAP_PROVIDER: "" }).length, 1);
+  for (const env of [{ NEXT_PUBLIC_SUPABASE_ANON_KEY: jwt("service_role") }, { NEXT_PUBLIC_SUPABASE_ANON_KEY: "sb_secret_abc" }, { NEXT_PUBLIC_ANYTHING: jwt("service_role") }, { NEXT_PUBLIC_SERVICE_ROLE_KEY: "x" }]) {
+    const problems = problemsWith(env);
+    assert.equal(problems.length, 1, JSON.stringify(Object.keys(env)));
+    for (const value of Object.values(env)) assert.ok(!problems[0].includes(value), "A problem never repeats the value");
+  }
+  assert.deepEqual(problemsWith({ NEXT_PUBLIC_SUPABASE_ANON_KEY: "e2e-anon-key" }), [], "A fixture key is fine outside production");
+  assert.equal(problemsWith({ ...good, VERCEL_ENV: "production", NEXT_PUBLIC_SUPABASE_ANON_KEY: "e2e-anon-key" }).length, 1);
+});
+
+test("the map's rewrites only ever catch /@username paths", () => {
+  const { rewrites } = JSON.parse(fs.readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
+  const match = pathname => rewrites.some(({ source }) => new RegExp(`^${source.replace(/:\w+/g, "[^/]+")}$`).test(pathname));
+  for (const path of ["/@alan", "/@alan/", "/@ALAN", "/@a.b_c"]) assert.ok(match(path), path);
+  for (const path of ["/", "/privacy/", "/map/", "/@", "/@/", "/@alan/extra", "/foo@bar", "/alan", "/%40alan"]) assert.ok(!match(path), path);
+  assert.ok(rewrites.every(({ destination }) => destination === "/map/"));
+  // Whatever reaches the page, only a valid name asks the database for anything.
+  for (const path of ["/@", "/map/", "/@%41lan", "/@alan%2Fbob", "/@a", "/@alan/extra", "/@" + "x".repeat(31), "/@al an", "/@<script>"]) assert.equal(usernameFromPath(path), null, path);
 });

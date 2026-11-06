@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 // production credentials or network access. Run: npm run verify
 // Afterwards out/ is a fixture build: run `npm run build` with real values before anything else uses it.
 const env = { ...process.env, NEXT_PUBLIC_SUPABASE_URL: "https://fixture.supabase.invalid", NEXT_PUBLIC_SUPABASE_ANON_KEY: "e2e-anon-key", NEXT_PUBLIC_MAPTILER_KEY: "", NEXT_PUBLIC_MAP_PROVIDER: "" };
-const steps = ["lint", "typecheck", "test", "build", "test:public-map", "test:marker-parity", "test:website", "build:basemap", "test:basemap"];
+const steps = ["lint", "typecheck", "test", "build", "test:release", "test:public-map", "test:marker-parity", "test:website", "build:basemap", "test:basemap"];
 const withProvider = new Set(["build:basemap", "test:basemap"]);
 for (const step of steps) {
   const started = Date.now();
