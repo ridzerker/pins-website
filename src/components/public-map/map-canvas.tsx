@@ -13,22 +13,32 @@ export const MAPLIBRE_WORKER_URL = "/vendor/maplibre-gl-worker-6.14.0.mjs";
 const BASEMAP = chooseBasemap({ provider: process.env.NEXT_PUBLIC_MAP_PROVIDER, maptilerKey: process.env.NEXT_PUBLIC_MAPTILER_KEY });
 const FALLBACK_STYLE: StyleSpecification = { version: 8, sources: {}, layers: [{ id: "Background", type: "background", paint: { "background-color": "#EEEFE1" } }] };
 
+// A provider that stops answering must not keep the pins off the map.
+const STYLE_WAIT_MS = 8000;
+async function fetchStyle(url: string, referrerPolicy: ReferrerPolicy) {
+  const request = new AbortController();
+  const timer = setTimeout(() => request.abort(), STYLE_WAIT_MS);
+  try {
+    const response = await fetch(url, { credentials: "omit", referrerPolicy, signal: request.signal });
+    if (!response.ok) throw new Error("Map style unavailable");
+    return await response.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function loadStyle(): Promise<{ style: StyleSpecification | string; basemap: boolean }> {
   if (BASEMAP.kind === "none") return { style: FALLBACK_STYLE, basemap: false };
   const url = BASEMAP.styleUrl;
   if (BASEMAP.kind === "openfreemap") {
     try {
-      const response = await fetch(url, { credentials: "omit", referrerPolicy: "no-referrer" });
-      if (!response.ok) throw new Error("Map style unavailable");
-      return { style: softenPositronStyle(await response.json()), basemap: true };
+      return { style: softenPositronStyle(await fetchStyle(url, "no-referrer")), basemap: true };
     } catch {
       return { style: FALLBACK_STYLE, basemap: false };
     }
   }
   try {
-    const response = await fetch(url, { credentials: "omit", referrerPolicy: "strict-origin" });
-    if (!response.ok) throw new Error("Map style unavailable");
-    return { style: softenBasicMapStyle(await response.json()), basemap: true };
+    return { style: softenBasicMapStyle(await fetchStyle(url, "strict-origin")), basemap: true };
   } catch {
     // Unsoftened Basic still works; never log the URL (it carries the key).
     return { style: url, basemap: true };
@@ -119,8 +129,9 @@ export function MapCanvas({ pins, clustered, selectedId, onSelect }: { pins: Pub
                 const clusterId = props.cluster_id!;
                 const [lng, lat] = feature.geometry.coordinates;
                 element.addEventListener("click", async () => {
-                  const zoom = await (current.getSource("pins") as GeoJSONSource).getClusterExpansionZoom(clusterId);
-                  current.easeTo({ center: [lng, lat], zoom: Math.min(zoom, 17), duration: 250 });
+                  // Fresh data can retire a cluster between the tap and the answer. The next sync redraws it.
+                  const zoom = await (current.getSource("pins") as GeoJSONSource).getClusterExpansionZoom(clusterId).catch(() => null);
+                  if (zoom !== null) current.easeTo({ center: [lng, lat], zoom: Math.min(zoom, 17), duration: 250 });
                 });
               } else {
                 const id = props.id!;
@@ -142,7 +153,8 @@ export function MapCanvas({ pins, clustered, selectedId, onSelect }: { pins: Pub
           syncFrame = requestAnimationFrame(() => { syncFrame = 0; if (!cancelled && current.getSource("pins") && current.isSourceLoaded("pins")) sync(); });
         };
 
-        current.on("load", () => {
+        // Not "load": that waits for every tile, so a slow or stalled provider would keep the pins off the map.
+        current.once("style.load", () => {
           if (cancelled) return;
           current.addSource("pins", { type: "geojson", data: geojson(latest.current.pins), cluster: latest.current.clustered, clusterRadius: 52, clusterMaxZoom: CLUSTER_MAX_ZOOM });
           // An invisible layer keeps the source's tiles loaded so querySourceFeatures sees every point.
@@ -160,7 +172,8 @@ export function MapCanvas({ pins, clustered, selectedId, onSelect }: { pins: Pub
         });
         // A provider with no working tiles leaves a plain background, so say so. One missing tile is just a gap.
         let baseTileLoaded = false;
-        current.on("data", event => { if (event.dataType === "source" && "tile" in event && event.tile && event.sourceId !== "pins") baseTileLoaded = true; });
+        // A tile arriving after early failures means the provider is back, so the notice goes too.
+        current.on("data", event => { if (event.dataType === "source" && "tile" in event && event.tile && event.sourceId !== "pins") { baseTileLoaded = true; setBasemap(true); } });
         // Only a style that never loads fails the map; a source's error never stops the pins.
         current.on("error", event => {
           const sourceId = (event as { sourceId?: string }).sourceId;

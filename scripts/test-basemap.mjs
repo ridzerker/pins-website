@@ -42,7 +42,10 @@ async function open(site, provider, viewport = { width: 1280, height: 800 }) {
     }
     if (url.startsWith(TILES)) {
       tileRequests.push({ url, headers: await request.allHeaders() });
-      return provider ? route.fulfill(provider(url)) : route.continue();
+      if (!provider) return route.continue();
+      const answer = provider(url);
+      // No answer at all: a provider that accepts the connection and then stalls.
+      return answer ? route.fulfill(answer) : undefined;
     }
     otherHosts.add(url);
     return route.abort();
@@ -109,6 +112,7 @@ try {
       ["its style is not the expected one", () => json({ version: 8, sources: {}, layers: [] }), withProvider],
       ["its tiles fail", url => url.endsWith("/styles/positron") ? json(style) : json({ message: "down" }, 503), withProvider],
       ["the security policy doesn't allow it yet", working, withoutCsp],
+      ["its style never answers", () => null, withProvider],
     ]) {
       const { page, context } = await open(site, provider);
       await page.getByText(NOTE).waitFor({ timeout: 15000 });
@@ -118,6 +122,32 @@ try {
       await page.getByRole("heading", { name: "Tartine", level: 2 }).waitFor();
       await context.close();
       console.log(`PASS when ${label}, pins still work on the plain background with the notice`);
+    }
+    {
+      // Tiles fail, then recover: the notice must not outlive the outage.
+      let down = true;
+      const { page, context } = await open(withProvider, url => url.endsWith("/styles/positron") ? json(style) : url.endsWith("/planet") ? json(tilejson) : down ? json({ message: "down" }, 503) : { status: 204, headers: CORS });
+      await page.getByText(NOTE).waitFor({ timeout: 15000 });
+      down = false;
+      const box = await page.locator('[aria-label="Map of public pins"]').boundingBox();
+      await page.mouse.move(box.x + 300, box.y + 300);
+      await page.mouse.wheel(0, -600);
+      await page.getByText(NOTE).waitFor({ state: "detached", timeout: 15000 });
+      await context.close();
+      console.log("PASS when tiles recover after an outage, the notice goes away");
+    }
+    for (const [label, provider] of [
+      ["its tiles never answer", url => url.endsWith("/styles/positron") ? json(style) : url.endsWith("/planet") ? json(tilejson) : null],
+      ["its icons fail", url => url.endsWith("/styles/positron") ? json(style) : url.endsWith("/planet") ? json(tilejson) : url.includes("/sprites/") ? json({ message: "down" }, 500) : { status: 204, headers: CORS }],
+    ]) {
+      const { page, context } = await open(withProvider, provider);
+      await page.waitForTimeout(500);
+      assert.equal(await page.getByText(BROKEN).count(), 0, label);
+      assert.equal(await page.locator(".maplibregl-marker").count(), places.length, label);
+      await page.locator('.maplibregl-marker[aria-label="Tartine"]').click();
+      await page.getByRole("heading", { name: "Tartine", level: 2 }).waitFor();
+      await context.close();
+      console.log(`PASS when ${label}, pins still work`);
     }
   }
 } finally {

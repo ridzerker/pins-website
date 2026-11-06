@@ -347,6 +347,11 @@ try {
   failAlan = false;
   assert.equal(callsFor("alan"), 3);
   await page.getByRole("heading", { name: "Taco Spot", level: 2 }).waitFor();
+  // Back and Forward can restore the page as it was, with no visibility change at all.
+  await skipAMinute();
+  await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
+  await page.waitForTimeout(200);
+  assert.equal(callsFor("alan"), 4, "A page restored by Back or Forward checks too");
   pass("returning to a tab rechecks at most once a minute, and unchanged data or a failed check leaves open details alone");
   // The pin is deleted, then the whole map is revoked, while the tab stays open.
   const alanBefore = fixtures.alan;

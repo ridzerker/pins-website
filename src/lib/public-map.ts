@@ -53,16 +53,21 @@ export function publicMapPath(username: string) {
   return `/@${username}`;
 }
 
+// Invisible control characters and direction overrides can disguise text, such as a fake name. Line breaks stay.
+const DISGUISING = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u202A-\u202E\u2066-\u2069]/g;
 const text = (value: unknown, max: number): string | null => {
   if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed ? trimmed.slice(0, max) : null;
+  const cleaned = value.replace(DISGUISING, "").trim();
+  if (!cleaned) return null;
+  // By character, like the database's left(), so a limit never cuts an emoji in half.
+  return cleaned.length <= max ? cleaned : Array.from(cleaned).slice(0, max).join("");
 };
 const finite = (value: unknown, min: number, max: number): number | null =>
   typeof value === "number" && Number.isFinite(value) && value >= min && value <= max ? value : null;
 const httpUrl = (value: unknown): string | null => {
   const raw = text(value, 2048);
-  if (!raw) return null;
+  // Removing a hidden character would change where the link goes, so it isn't a link at all.
+  if (!raw || raw !== (value as string).trim()) return null;
   try {
     const url = new URL(raw);
     // A user:password@ prefix can make a link look like a different site.

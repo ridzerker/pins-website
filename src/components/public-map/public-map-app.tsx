@@ -45,8 +45,16 @@ export function PublicMapApp() {
         setView(previous => result.status === "ready" && JSON.stringify(result) === JSON.stringify(previous) ? previous : result);
       }, () => { controller = null; });
     };
+    // pageshow covers Back and Forward, which can restore this page from the browser's memory as it was.
     document.addEventListener("visibilitychange", recheck);
-    return () => { document.removeEventListener("visibilitychange", recheck); controller?.abort(); };
+    window.addEventListener("pageshow", recheck);
+    window.addEventListener("focus", recheck);
+    return () => {
+      document.removeEventListener("visibilitychange", recheck);
+      window.removeEventListener("pageshow", recheck);
+      window.removeEventListener("focus", recheck);
+      controller?.abort();
+    };
   }, [view.status]);
   const retry = () => { setView({ status: "loading" }); setAttempt(n => n + 1); };
 
