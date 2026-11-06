@@ -7,22 +7,28 @@ import path from "node:path";
 // this pins them: it adds a <meta> policy listing their hashes. Browsers enforce both policies, so an
 // injected inline script is blocked even though the header allows inline. If this step ever doesn't
 // run, the pages simply fall back to the header policy.
-const root = path.resolve(process.argv[2] ?? "out");
+//
+// On Vercel, Next's adapter copies out/ to .next/output/static during `next build`, before this step,
+// and that copy is what gets deployed. So both have to be pinned. `npm run smoke` checks the live result.
+const ADAPTER_OUTPUT = ".next/output/static";
+const roots = process.argv[2] ? [process.argv[2]] : ["out", ...(await fs.stat(ADAPTER_OUTPUT).then(() => [ADAPTER_OUTPUT], () => []))];
 const INLINE_SCRIPT = /<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/gi;
 const NOT_EXECUTED = /\btype=["'](?:application\/(?:ld\+)?json)["']/i;
 
 const walk = async dir => (await Promise.all((await fs.readdir(dir, { withFileTypes: true })).map(entry => entry.isDirectory() ? walk(path.join(dir, entry.name)) : [path.join(dir, entry.name)]))).flat();
-let pages = 0;
-for (const file of (await walk(root)).filter(name => name.endsWith(".html"))) {
-  const html = await fs.readFile(file, "utf8");
-  if (html.includes('http-equiv="Content-Security-Policy"')) continue;
-  const hashes = new Set();
-  for (const [, attributes, body] of html.matchAll(INLINE_SCRIPT)) if (!NOT_EXECUTED.test(attributes)) hashes.add(`'sha256-${createHash("sha256").update(body, "utf8").digest("base64")}'`);
-  const meta = `<meta http-equiv="Content-Security-Policy" content="script-src 'self' ${[...hashes].join(" ")}"/>`;
-  if (!/<head[^>]*>/i.test(html)) throw new Error(`No <head> in ${file}`);
-  // First in <head>: a policy only covers what comes after it.
-  await fs.writeFile(file, html.replace(/<head[^>]*>/i, match => match + meta));
-  pages++;
+for (const root of roots.map(dir => path.resolve(dir))) {
+  let pages = 0;
+  for (const file of (await walk(root)).filter(name => name.endsWith(".html"))) {
+    const html = await fs.readFile(file, "utf8");
+    if (html.includes('http-equiv="Content-Security-Policy"')) continue;
+    const hashes = new Set();
+    for (const [, attributes, body] of html.matchAll(INLINE_SCRIPT)) if (!NOT_EXECUTED.test(attributes)) hashes.add(`'sha256-${createHash("sha256").update(body, "utf8").digest("base64")}'`);
+    const meta = `<meta http-equiv="Content-Security-Policy" content="script-src 'self' ${[...hashes].join(" ")}"/>`;
+    if (!/<head[^>]*>/i.test(html)) throw new Error(`No <head> in ${file}`);
+    // First in <head>: a policy only covers what comes after it.
+    await fs.writeFile(file, html.replace(/<head[^>]*>/i, match => match + meta));
+    pages++;
+  }
+  if (!pages) throw new Error(`No pages found under ${root}`);
+  console.log(`Pinned inline scripts on ${pages} pages in ${path.relative(process.cwd(), root)}.`);
 }
-if (!pages) throw new Error(`No pages found under ${root}`);
-console.log(`Pinned inline scripts on ${pages} pages.`);
