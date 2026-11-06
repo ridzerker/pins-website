@@ -2,8 +2,8 @@
 export const siteUrl = "https://www.joinpins.app";
 // Official, monitored Pins support mailbox. Used for support, privacy requests, and beta questions.
 export const supportEmail = "support@joinpins.app";
-export const policyUpdated = "2026-10-14";
-export const policyUpdatedLabel = "October 14, 2026";
+export const policyUpdated = "2026-11-06";
+export const policyUpdatedLabel = "November 6, 2026";
 
 // Public TestFlight invitation for the iOS beta (verified October 14, 2026). This is not an App Store listing.
 // Every download CTA and the desktop QR code read this value; change it only here.
