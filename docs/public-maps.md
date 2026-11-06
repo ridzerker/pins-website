@@ -46,6 +46,18 @@ Without the Supabase pair, `/@username` pages show "This map isn't available." T
 are compiled into browser JavaScript and are public by design. Never add a Supabase service-role
 or secret key, or any non-`NEXT_PUBLIC_` secret. Set them for Preview first, then Production.
 
+## Deploying and checking
+
+- **Before a production build:** set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
+  `NEXT_PUBLIC_MAP_PROVIDER=openfreemap` in Vercel Production. These are public values.
+  `scripts/check-build-env.mjs` stops a production build if one is missing or malformed, and any build if a
+  public variable holds a privileged key. It relies on Vercel's `VERCEL_ENV` and names variables, never values.
+- **After a build:** `npm run test:release` checks the output: script hashes, credentials, trackers, the
+  generic map shell and the sitemap.
+- **After a deploy:** `npm run smoke` makes read-only requests to the public site. Add
+  `-- --username=<opted-in name>` to include a live map's data. It can't see tiles or markers, so look at a
+  live map in a browser too.
+
 ## Tests
 
 ```sh
