@@ -12,7 +12,17 @@
 .profileActions { display: flex; flex-direction: column; align-items: flex-end; gap: .5rem; }
 .cta { min-height: 48px; padding-inline: 1.4rem; font-size: var(--text-button); }
 .secondaryCta { min-height: 48px; padding-inline: 1.4rem; font-size: var(--text-button); border: 1px solid var(--border); background: var(--surface); }
-.ctaHint { margin: 0; color: var(--muted); font-size: var(--text-caption); text-align: right; }
+.ctaHint { margin: 0; max-width: 22rem; color: var(--muted); font-size: var(--text-caption); line-height: 1.45; text-align: right; }
+.actionRow { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; }
+.secondaryCta { color: var(--deep); }
+.share { position: relative; display: inline-flex; flex-direction: column; align-items: flex-start; gap: .35rem; }
+.shareStatus { color: var(--deep); font-size: var(--text-caption); font-weight: 600; }
+.shareStatus:empty { display: none; }
+.manual { display: flex; flex-direction: column; gap: .25rem; color: var(--muted); font-size: var(--text-caption); }
+.manual input { width: min(20rem, 80vw); min-height: 40px; padding: 0 .6rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; }
+.linkButton { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0; border: 0; background: none; color: var(--deep); font: inherit; font-weight: 600; cursor: pointer; }
+.linkButton:hover { text-decoration: underline; text-underline-offset: 4px; }
+.promoAction { display: flex; flex-direction: column; align-items: flex-end; gap: .5rem; flex-shrink: 0; }
 
 /* Filters */
 .filters { display: flex; gap: .5rem; overflow-x: auto; padding-bottom: .75rem; margin-bottom: .5rem; scrollbar-width: thin; }
@@ -81,6 +91,9 @@
   .profile { grid-template-columns: auto 1fr; }
   .profileActions { grid-column: 1 / -1; align-items: flex-start; }
   .ctaHint { text-align: left; }
+  .actionRow { justify-content: flex-start; }
+  .promoAction { align-items: flex-start; }
+  .profile { margin-bottom: 1rem; }
   .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: min(60vh, 520px) auto; height: auto; min-height: 0; }
   .mapFrame { min-height: 360px; }
   .panel { max-height: none; overflow: visible; }

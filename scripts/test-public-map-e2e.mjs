@@ -118,7 +118,7 @@ try {
   await page.getByRole("heading", { name: "Alan Tran", level: 1 }).waitFor();
   assert.equal(page.url(), origin + "/@alan", "The share URL stays in the address bar");
   assert.equal(await page.title(), "Alan Tran (@alan) | Pins");
-  for (const text of ["@alan", "Tacos, coffee and long walks.", "4 public pins", "Already on Pins? Find @alan in Explore."]) await page.getByText(text, { exact: true }).first().waitFor();
+  for (const text of ["@alan", "Tacos, coffee and long walks.", "4 public pins", "Free iPhone beta on TestFlight. Already on Pins? Find @alan in Explore."]) await page.getByText(text, { exact: true }).first().waitFor();
   assert.equal(await page.locator('meta[name="robots"]').getAttribute("content"), "noindex, nofollow");
   assert.equal(await page.locator('meta[name="referrer"]').getAttribute("content"), "no-referrer");
   assert.equal(await page.locator('link[rel="canonical"]').count(), 0, "The shared shell never claims a canonical URL");
@@ -200,10 +200,16 @@ try {
     await page.getByRole("heading", { name: "Alan Tran", level: 1 }).waitFor();
     await page.locator(".maplibregl-canvas").waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Horizontal overflow at ${width}px`);
+    // The first view frames every pin, like the app (markers exist only for pins in view).
+    await page.waitForFunction(() => document.querySelectorAll(".maplibregl-marker").length === 4, null, { timeout: 20000 });
+    assert.ok(await page.evaluate(() => {
+      const frame = document.querySelector(".maplibregl-canvas").getBoundingClientRect();
+      return [...document.querySelectorAll(".maplibregl-marker")].every(marker => { const r = marker.getBoundingClientRect(); return r.left >= frame.left && r.right <= frame.right && r.top >= frame.top && r.bottom <= frame.bottom; });
+    }), `Every pin is framed at ${width}px`);
     await axe(`/@alan at ${width}px`);
     await page.screenshot({ path: path.join(artifacts, `alan-${width}.png`), fullPage: true });
   }
-  pass("responsive at 320/390/768/1280 px with no overflow and no axe WCAG A/AA violations");
+  pass("responsive at 320/390/768/1280 px with every pin framed, no overflow and no axe WCAG A/AA violations");
 
   await page.goto(origin + "/@ALAN/");
   await page.getByRole("heading", { name: "Alan Tran", level: 1 }).waitFor();
@@ -368,6 +374,73 @@ try {
   assert.ok(!(await page.content()).includes("Morning Coffee"), "No pin data remains on the page after revocation");
   fixtures.alan = alanBefore;
   pass("while a tab stays open, a deleted pin and a revoked map disappear on return");
+
+  // Sharing from the web, in a context whose share sheet and clipboard are recorded instead of real.
+  const shareContext = await browser.newContext({ reducedMotion: "reduce", viewport: { width: 390, height: 844 } });
+  await shareContext.route("**/*", async route => {
+    const request = route.request(), url = request.url();
+    if (url.startsWith(origin) || url.startsWith("data:") || url.startsWith("blob:")) return route.continue();
+    if (url === RPC && request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "POST" } });
+    if (url === RPC) return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(answer(JSON.parse(request.postData() ?? "{}").target_username).body), headers: { "Access-Control-Allow-Origin": "*" } });
+    blocked.add(url);
+    return route.abort();
+  });
+  await shareContext.addInitScript(() => {
+    window.__shared = []; window.__copied = [];
+    const mode = new URLSearchParams(location.search).get("share");
+    const share = mode === "sheet" ? async data => { window.__shared.push(data); }
+      : mode === "cancel" ? async () => { throw new DOMException("closed", "AbortError"); } : undefined;
+    Object.defineProperty(navigator, "share", { configurable: true, value: share });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async text => {
+      if (mode === "noclipboard") throw new DOMException("denied", "NotAllowedError");
+      window.__copied.push(text);
+    } } });
+  });
+  const sharePage = await shareContext.newPage();
+  sharePage.on("pageerror", error => errors.push(error.message));
+  const openShare = async mode => {
+    await sharePage.goto(`${origin}/@alan?share=${mode}`);
+    await sharePage.getByRole("heading", { name: "Alan Tran", level: 1 }).waitFor();
+  };
+  await openShare("sheet");
+  await sharePage.getByRole("button", { name: "Share map" }).click();
+  await sharePage.waitForFunction(() => window.__shared.length === 1);
+  assert.deepEqual(await sharePage.evaluate(() => window.__shared[0]), { url: "https://www.joinpins.app/@alan", title: "Alan Tran on Pins", text: "Explore Alan Tran’s map on Pins" });
+  assert.deepEqual(await sharePage.evaluate(() => window.__copied), [], "A completed share does not also copy");
+  await sharePage.locator('[data-pin-id="p1"]').click();
+  await sharePage.getByRole("button", { name: "Share place" }).click();
+  await sharePage.waitForFunction(() => window.__shared.length === 2);
+  assert.equal(await sharePage.evaluate(() => window.__shared[1].url), "https://www.joinpins.app/@alan?pin=p1");
+  await openShare("cancel");
+  await sharePage.getByRole("button", { name: "Share map" }).click();
+  await sharePage.waitForTimeout(200);
+  assert.deepEqual(await sharePage.evaluate(() => [window.__copied, document.querySelector("[role=status]")?.textContent ?? ""]), [[], ""], "Closing the share sheet changes nothing");
+  await openShare("copy");
+  await sharePage.getByRole("button", { name: "Share map" }).click();
+  await sharePage.getByText("Link copied", { exact: true }).waitFor();
+  assert.deepEqual(await sharePage.evaluate(() => window.__copied), ["https://www.joinpins.app/@alan"]);
+  await openShare("noclipboard");
+  await sharePage.getByRole("button", { name: "Share map" }).click();
+  const manual = sharePage.getByLabel("Copy this link");
+  await manual.waitFor();
+  assert.equal(await manual.inputValue(), "https://www.joinpins.app/@alan");
+  assert.equal(await manual.evaluate(input => input === document.activeElement && input.selectionEnd - input.selectionStart === input.value.length), true, "The link is selected, ready to copy");
+  await sharePage.evaluate(`${axeSource};undefined`);
+  assert.deepEqual(await sharePage.evaluate(async () => (await window.axe.run(document, { runOnly: { type: "tag", values: ["wcag2a", "wcag2aa", "wcag21aa"] } })).violations.map(v => v.id)), [], "The manual copy field is accessible");
+  // Every call to action is a real, public destination with its placement marked, and never an internal invitation.
+  const ctas = await sharePage.$$eval("a[data-cta]", links => links.map(link => [link.dataset.cta, link.href, link.target, link.rel]));
+  assert.deepEqual(ctas.map(([cta]) => cta).sort(), ["profile", "promo"]);
+  for (const [, href, target, rel] of ctas) {
+    assert.match(href, /^https:\/\/testflight\.apple\.com\/join\/[A-Za-z0-9]+$/);
+    assert.equal(target, "_blank");
+    assert.match(rel, /noopener/);
+  }
+  await sharePage.goto(`${origin}/@nobody`);
+  await sharePage.getByRole("heading", { name: "This map isn’t available.", level: 1 }).waitFor();
+  assert.deepEqual(await sharePage.$$eval("a[data-cta]", links => links.map(link => link.dataset.cta)), ["unavailable"]);
+  assert.equal(await sharePage.getByRole("button", { name: /Share/ }).count(), 0, "An unavailable map offers nothing to share");
+  await shareContext.close();
+  pass("Share map and Share place use the share sheet, else the clipboard, else a selected link; closing the sheet does nothing; every CTA goes to the public TestFlight invitation");
 
   const noJs = await browser.newContext({ javaScriptEnabled: false });
   await noJs.route("**/*", route => route.request().url().startsWith(origin) ? route.continue() : route.abort());

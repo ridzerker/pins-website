@@ -241,3 +241,30 @@ test("the map's rewrites only ever catch /@username paths", () => {
   // Whatever reaches the page, only a valid name asks the database for anything.
   for (const path of ["/@", "/map/", "/@%41lan", "/@alan%2Fbob", "/@a", "/@alan/extra", "/@" + "x".repeat(31), "/@al an", "/@<script>"]) assert.equal(usernameFromPath(path), null, path);
 });
+
+test("share links are canonical, and sharing falls back from the share sheet to the clipboard to copying by hand", async () => {
+  const { publicMapShareUrl: shareUrl, shareLink, shareText } = await import("../src/lib/public-map-share.ts");
+  const { siteUrl, testFlightUrl } = await import("../src/lib/site-config.ts");
+  const publicMapShareUrl = (...args) => shareUrl(siteUrl, ...args);
+  assert.equal(publicMapShareUrl("alan"), "https://www.joinpins.app/@alan");
+  assert.equal(publicMapShareUrl("alan", "1b2c-3d"), "https://www.joinpins.app/@alan?pin=1b2c-3d");
+  assert.equal(publicMapShareUrl("alan", "a&b=c"), "https://www.joinpins.app/@alan?pin=a%26b%3Dc");
+  assert.equal(shareText("Alan"), "Explore Alan’s map on Pins");
+  assert.match(testFlightUrl, /^https:\/\/testflight\.apple\.com\/join\/[A-Za-z0-9]+$/, "Visitors go to the public TestFlight invitation");
+  const data = { url: "https://www.joinpins.app/@alan", title: "Alan on Pins", text: "Explore Alan’s map on Pins" };
+  const shared = [], copied = [];
+  const clipboard = { writeText: async value => { copied.push(value); } };
+  assert.equal(await shareLink(data, { share: async value => { shared.push(value); }, canShare: () => true, clipboard }), "shared");
+  assert.deepEqual(shared, [data]);
+  assert.deepEqual(copied, [], "A completed share does not also copy");
+  const abort = Object.assign(new Error("closed"), { name: "AbortError" });
+  assert.equal(await shareLink(data, { share: async () => { throw abort; }, clipboard }), "cancelled", "Closing the sheet is not an error and copies nothing");
+  assert.deepEqual(copied, []);
+  assert.equal(await shareLink(data, { share: async () => { throw new Error("NotAllowedError"); }, clipboard }), "copied", "A failed share copies instead");
+  assert.equal(await shareLink(data, { canShare: () => false, share: async () => { throw new Error("never"); }, clipboard }), "copied");
+  assert.equal(await shareLink(data, { clipboard }), "copied");
+  assert.deepEqual(copied, [data.url, data.url, data.url], "Only the link is copied");
+  assert.equal(await shareLink(data, { clipboard: { writeText: async () => { throw new Error("denied"); } } }), "manual");
+  assert.equal(await shareLink(data, {}), "manual");
+  assert.equal(await shareLink(data, undefined), "manual");
+});

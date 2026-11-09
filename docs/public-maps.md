@@ -27,6 +27,10 @@ Opt-in public maps that anyone can open without an account, for example `joinpin
   `maplibre-gl`, run `node scripts/copy-maplibre-worker.mjs` and update `MAPLIBRE_WORKER_URL`;
   `npm test` fails if they drift.
 
+Visitors can share the map (**Share map**) or one pin (**Share place**). The page uses the browser's share sheet where there is one, otherwise copies the link, otherwise shows it selected to copy by hand (`src/lib/public-map-share.ts`). Links are always the canonical `https://www.joinpins.app/@username`, plus `?pin=<id>` for a place. Nothing is sent anywhere by the page.
+
+Every call to action's wording and destination lives in `src/lib/public-map-cta.ts`, and each link carries `data-cta` (`profile`, `promo`, `unavailable`, `error`), so wording and placement can be compared later. Until the App Store launch, the destination is the public TestFlight invitation. The site still has no analytics.
+
 A link can open on one pin: `/@alan?pin=<id>`. The id is only compared with that map's own pins and is
 never sent to the database. An unknown id opens the map as usual.
 

@@ -8,8 +8,8 @@ export function Logo() {
 }
 
 // Off-site links open in a new tab without sharing the opener or referrer.
-export function ExternalLink({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
-  return <a href={href} className={className} target="_blank" rel="noopener noreferrer">{children}<span className="visually-hidden"> (opens in a new tab)</span></a>;
+export function ExternalLink({ href, className, children, cta }: { href: string; className?: string; children: React.ReactNode; cta?: string }) {
+  return <a href={href} className={className} target="_blank" rel="noopener noreferrer" data-cta={cta}>{children}<span className="visually-hidden"> (opens in a new tab)</span></a>;
 }
 
 export function Header() {

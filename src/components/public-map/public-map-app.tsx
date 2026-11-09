@@ -5,7 +5,9 @@ import { ExternalLink } from "@/components/site";
 import { Icon } from "@/components/icons";
 import { displayNameFor, fetchPublicMap, pinIdFromSearch, publicMapConfig, publicMapPath, usernameFromPath, type PublicMap, type PublicMapPin, type PublicMapResult } from "@/lib/public-map";
 import { CLUSTER_ABOVE_PINS, pinAppearance } from "@/lib/pins-marker";
-import { testFlightUrl } from "@/lib/site-config";
+import { publicMapCta } from "@/lib/public-map-cta";
+import { publicMapShareUrl, shareLink, shareText } from "@/lib/public-map-share";
+import { siteUrl } from "@/lib/site-config";
 import { MapCanvas } from "./map-canvas";
 import styles from "./public-map.module.css";
 
@@ -69,7 +71,7 @@ export function PublicMapApp() {
     <p className="document-intro">{failed ? "Check your connection and try again." : "The link may be wrong, or its owner may have stopped sharing their map on the web."}</p>
     <div className={styles.messageActions}>
       {failed && <button type="button" className={`button primary ${styles.cta}`} onClick={retry}>Try again</button>}
-      <ExternalLink className={`button ${failed ? styles.secondaryCta : `primary ${styles.cta}`}`} href={testFlightUrl}>Get Pins</ExternalLink>
+      <ExternalLink className={`button ${failed ? styles.secondaryCta : `primary ${styles.cta}`}`} href={publicMapCta.href} cta={failed ? "error" : "unavailable"}>{publicMapCta.getPins}</ExternalLink>
       <Link href="/" className="text-link">What is Pins? →</Link>
     </div>
   </main>;
@@ -119,9 +121,11 @@ function MapPage({ map }: { map: PublicMap }) {
         <p className={styles.count}><Icon name="pin" size={16} /> {map.publicPinCount.toLocaleString("en-US")} public {map.publicPinCount === 1 ? "pin" : "pins"}</p>
       </div>
       <div className={styles.profileActions}>
-        <ExternalLink className={`button primary ${styles.cta}`} href={testFlightUrl}>Get Pins <Icon name="arrow" size={16} /></ExternalLink>
-        <p className={styles.ctaHint}>Free iPhone beta, through TestFlight.</p>
-        <p className={styles.ctaHint}>Already on Pins? Find @{map.username} in Explore.</p>
+        <div className={styles.actionRow}>
+          <ExternalLink className={`button primary ${styles.cta}`} href={publicMapCta.href} cta="profile">{publicMapCta.getPins} <Icon name="arrow" size={16} /></ExternalLink>
+          <ShareButton className={`button ${styles.secondaryCta}`} label="Share map" url={publicMapShareUrl(siteUrl, map.username)} title={`${name} on Pins`} text={shareText(name)} />
+        </div>
+        <p className={styles.ctaHint}>{publicMapCta.hint} Already on Pins? Find @{map.username} in Explore.</p>
       </div>
     </section>
 
@@ -138,7 +142,7 @@ function MapPage({ map }: { map: PublicMap }) {
       <section className={`shell ${styles.workspace}`} aria-label={`${name}’s map`}>
         <MapCanvas key={clustered ? "clustered" : "plain"} pins={pins} clustered={clustered} selectedId={selectedId} onSelect={setSelectedId} />
         <aside ref={panel} className={styles.panel} onKeyDown={event => { if (event.key === "Escape" && selected) closeDetails(); }}>
-          {selected ? <PinDetails pin={selected} onClose={closeDetails} /> : <>
+          {selected ? <PinDetails pin={selected} owner={map.username} ownerName={name} onClose={closeDetails} /> : <>
             <h2 className={styles.panelTitle} tabIndex={-1}>{category ?? "All pins"}</h2>
             <p className="visually-hidden" role="status">{category ? `Showing ${pins.length.toLocaleString("en-US")} ${pins.length === 1 ? "pin" : "pins"} in ${category}` : ""}</p>
             <ul className={styles.list}>
@@ -157,13 +161,16 @@ function MapPage({ map }: { map: PublicMap }) {
     </>}
 
     <section className={`shell ${styles.promo}`}>
-      <div><h2>Make a map of your own.</h2><p>Pins is a social map. Save the places that matter, share them with friends, and publish a map like this one.</p></div>
-      <ExternalLink className={`button primary ${styles.cta}`} href={testFlightUrl}>Join the iOS beta <Icon name="arrow" size={16} /></ExternalLink>
+      <div><h2>{publicMapCta.promoTitle}</h2><p>{publicMapCta.promoBody}</p></div>
+      <div className={styles.promoAction}>
+        <ExternalLink className={`button primary ${styles.cta}`} href={publicMapCta.href} cta="promo">{publicMapCta.promoAction} <Icon name="arrow" size={16} /></ExternalLink>
+        <p className={styles.ctaHint}>{publicMapCta.hint}</p>
+      </div>
     </section>
   </main>;
 }
 
-function PinDetails({ pin, onClose }: { pin: PublicMapPin; onClose: () => void }) {
+function PinDetails({ pin, owner, ownerName, onClose }: { pin: PublicMapPin; owner: string; ownerName: string; onClose: () => void }) {
   const title = useRef<HTMLHeadingElement>(null);
   // On a phone the details sit below the map, so a marker tap would otherwise show no change.
   useEffect(() => {
@@ -184,8 +191,31 @@ function PinDetails({ pin, onClose }: { pin: PublicMapPin; onClose: () => void }
     <div className={styles.detailLinks}>
       <a href={mapsUrl} target="_blank" rel="noopener noreferrer">Open in Maps<span className="visually-hidden"> (opens in a new tab)</span></a>
       {pin.linkUrl && <a href={pin.linkUrl} target="_blank" rel="noopener noreferrer nofollow ugc">Visit link<span className="visually-hidden"> (opens in a new tab)</span></a>}
+      <ShareButton className={styles.linkButton} label="Share place" url={publicMapShareUrl(siteUrl, owner, pin.id)} title={`${pin.title} on Pins`} text={`${pin.title}, from ${shareText(ownerName)}`} />
     </div>
   </article>;
+}
+
+/** Share sheet where the browser has one, else the clipboard, else the link to copy by hand. */
+function ShareButton({ url, title, text, label, className }: { url: string; title: string; text: string; label: string; className: string }) {
+  const [status, setStatus] = useState<"" | "copied" | "manual">("");
+  const field = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (status === "manual") field.current?.select();
+    if (status !== "copied") return;
+    const timer = setTimeout(() => setStatus(""), 4000);
+    return () => clearTimeout(timer);
+  }, [status]);
+  const share = async () => {
+    setStatus("");
+    const outcome = await shareLink({ url, title, text });
+    if (outcome === "copied" || outcome === "manual") setStatus(outcome);
+  };
+  return <span className={styles.share}>
+    <button type="button" className={className} onClick={() => { void share(); }}><Icon name="share" size={16} /> {label}</button>
+    <span role="status" className={styles.shareStatus}>{status === "copied" ? "Link copied" : ""}</span>
+    {status === "manual" && <label className={styles.manual}>Copy this link<input ref={field} readOnly value={url} onFocus={event => event.currentTarget.select()} /></label>}
+  </span>;
 }
 
 function CategoryIcon({ category }: { category: PublicMapPin["category"] }) {
