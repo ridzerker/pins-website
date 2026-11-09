@@ -6,7 +6,7 @@ import { Icon } from "@/components/icons";
 import { displayNameFor, fetchPublicMap, pinIdFromSearch, publicMapConfig, publicMapPath, usernameFromPath, type PublicMap, type PublicMapPin, type PublicMapResult } from "@/lib/public-map";
 import { CLUSTER_ABOVE_PINS, pinAppearance } from "@/lib/pins-marker";
 import { publicMapCta } from "@/lib/public-map-cta";
-import { publicMapShareUrl, shareLink, shareText } from "@/lib/public-map-share";
+import { publicMapShareUrl, placeShareText, shareLink, shareText } from "@/lib/public-map-share";
 import { siteUrl } from "@/lib/site-config";
 import { MapCanvas } from "./map-canvas";
 import styles from "./public-map.module.css";
@@ -191,7 +191,7 @@ function PinDetails({ pin, owner, ownerName, onClose }: { pin: PublicMapPin; own
     <div className={styles.detailLinks}>
       <a href={mapsUrl} target="_blank" rel="noopener noreferrer">Open in Maps<span className="visually-hidden"> (opens in a new tab)</span></a>
       {pin.linkUrl && <a href={pin.linkUrl} target="_blank" rel="noopener noreferrer nofollow ugc">Visit link<span className="visually-hidden"> (opens in a new tab)</span></a>}
-      <ShareButton className={styles.linkButton} label="Share place" url={publicMapShareUrl(siteUrl, owner, pin.id)} title={`${pin.title} on Pins`} text={`${pin.title}, from ${shareText(ownerName)}`} />
+      <ShareButton className={styles.linkButton} label="Share place" url={publicMapShareUrl(siteUrl, owner, pin.id)} title={`${pin.title} on Pins`} text={placeShareText(pin.title, ownerName)} />
     </div>
   </article>;
 }

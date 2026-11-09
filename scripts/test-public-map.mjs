@@ -243,13 +243,14 @@ test("the map's rewrites only ever catch /@username paths", () => {
 });
 
 test("share links are canonical, and sharing falls back from the share sheet to the clipboard to copying by hand", async () => {
-  const { publicMapShareUrl: shareUrl, shareLink, shareText } = await import("../src/lib/public-map-share.ts");
+  const { publicMapShareUrl: shareUrl, placeShareText, shareLink, shareText } = await import("../src/lib/public-map-share.ts");
   const { siteUrl, testFlightUrl } = await import("../src/lib/site-config.ts");
   const publicMapShareUrl = (...args) => shareUrl(siteUrl, ...args);
   assert.equal(publicMapShareUrl("alan"), "https://www.joinpins.app/@alan");
   assert.equal(publicMapShareUrl("alan", "1b2c-3d"), "https://www.joinpins.app/@alan?pin=1b2c-3d");
   assert.equal(publicMapShareUrl("alan", "a&b=c"), "https://www.joinpins.app/@alan?pin=a%26b%3Dc");
   assert.equal(shareText("Alan"), "Explore Alan’s map on Pins");
+  assert.equal(placeShareText("Taco Spot", "Alan"), "Taco Spot, on Alan’s map on Pins");
   assert.match(testFlightUrl, /^https:\/\/testflight\.apple\.com\/join\/[A-Za-z0-9]+$/, "Visitors go to the public TestFlight invitation");
   const data = { url: "https://www.joinpins.app/@alan", title: "Alan on Pins", text: "Explore Alan’s map on Pins" };
   const shared = [], copied = [];

@@ -10,6 +10,10 @@ export function shareText(name: string) {
   return `Explore ${name}’s map on Pins`;
 }
 
+export function placeShareText(place: string, name: string) {
+  return `${place}, on ${name}’s map on Pins`;
+}
+
 export type ShareOutcome = "shared" | "copied" | "cancelled" | "manual";
 
 /** The system share sheet where the browser has one, otherwise the clipboard. When neither works, the caller shows the link to copy by hand. */

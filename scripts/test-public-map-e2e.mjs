@@ -410,7 +410,7 @@ try {
   await sharePage.locator('[data-pin-id="p1"]').click();
   await sharePage.getByRole("button", { name: "Share place" }).click();
   await sharePage.waitForFunction(() => window.__shared.length === 2);
-  assert.equal(await sharePage.evaluate(() => window.__shared[1].url), "https://www.joinpins.app/@alan?pin=p1");
+  assert.deepEqual(await sharePage.evaluate(() => window.__shared[1]), { url: "https://www.joinpins.app/@alan?pin=p1", title: "Taco Spot on Pins", text: "Taco Spot, on Alan Tran’s map on Pins" });
   await openShare("cancel");
   await sharePage.getByRole("button", { name: "Share map" }).click();
   await sharePage.waitForTimeout(200);
