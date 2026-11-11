@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { chromium } from "playwright-core";
+import { chromium, firefox, webkit } from "playwright-core";
 import { headersFor } from "./lib/vercel-headers.mjs";
 
 // Browser tests for joinpins.app/@username against the built static export, in an isolated headless
@@ -79,7 +79,11 @@ const answer = username => {
   return { status: 200, body: fixtures[username] ?? null };
 };
 
-const browser = await chromium.launch({ executablePath: process.env.PINS_TEST_BROWSER || "C:/Program Files/Google/Chrome/Application/chrome.exe", headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
+// PINS_TEST_ENGINE=webkit or firefox runs the same checks in Playwright's own build of that engine
+// (install once: npx playwright@<playwright-core version> install webkit firefox). Default: installed Chrome.
+const engine = process.env.PINS_TEST_ENGINE ?? "chromium";
+const browser = engine === "webkit" ? await webkit.launch({ headless: true }) : engine === "firefox" ? await firefox.launch({ headless: true })
+  : await chromium.launch({ executablePath: process.env.PINS_TEST_BROWSER || "C:/Program Files/Google/Chrome/Application/chrome.exe", headless: true, args: ["--use-angle=swiftshader", "--enable-unsafe-swiftshader"] });
 const context = await browser.newContext({ reducedMotion: "reduce" });
 const blocked = new Set(), errors = [], dialogs = [];
 await context.route("**/*", async route => {
@@ -98,9 +102,13 @@ await context.route("**/*", async route => {
   return route.abort();
 });
 const page = await context.newPage();
-page.on("pageerror", error => errors.push(error.message));
+// Under this harness's request interception, WebKit rejects Next's same-origin route prefetches
+// (`__next.*.txt?_rsc=`) "due to access control checks". Production in WebKit logs none (checked
+// 2026-11-10), so only that exact message is ignored, and only in WebKit.
+const harnessNoise = text => engine === "webkit" && /__next\.[^ ]*\.txt\?_rsc=\S+ due to access control checks/.test(text);
+page.on("pageerror", error => { if (!harnessNoise(error.message)) errors.push(error.message); });
 const consoleErrors = [];
-page.on("console", message => { if (message.type() === "error" && !/status of 500/.test(message.text())) consoleErrors.push(`${message.text()} (${message.location().url})`); });
+page.on("console", message => { if (message.type() === "error" && !/status of 500/.test(message.text()) && !harnessNoise(message.text())) consoleErrors.push(`${message.text()} (${message.location().url})`); });
 page.on("dialog", dialog => { dialogs.push(dialog.message()); void dialog.dismiss(); });
 const axeSource = await fs.readFile(require.resolve("axe-core/axe.min.js"), "utf8");
 let passed = 0;
@@ -117,6 +125,8 @@ try {
   assert.match(firstResponse.headers()["content-security-policy"], /default-src .self./, "The test server applies vercel.json, so the browser enforces the real policy");
   await page.getByRole("heading", { name: "Alan Tran", level: 1 }).waitFor();
   assert.equal(page.url(), origin + "/@alan", "The share URL stays in the address bar");
+  // The map's title replaces the shell's once data loads; WebKit can report the shell's for a moment.
+  await page.waitForFunction(() => document.title === "Alan Tran (@alan) | Pins", null, { timeout: 5000 }).catch(() => {});
   assert.equal(await page.title(), "Alan Tran (@alan) | Pins");
   for (const text of ["@alan", "Tacos, coffee and long walks.", "4 public pins", "Free iPhone beta on TestFlight. Already on Pins? Find @alan in Explore."]) await page.getByText(text, { exact: true }).first().waitFor();
   assert.equal(await page.locator('meta[name="robots"]').getAttribute("content"), "noindex, nofollow");
